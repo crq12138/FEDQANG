@@ -214,8 +214,14 @@ def run():
         node.broadcast(bc_enum.SERVICE * bc_enum.DESCOVERY + bc_enum.EXCHANGEGRAD, a)
         time.sleep(6)
         for i in p2p.grad_list:
-            if i not in grad_recv:
-                grad_recv.append(pickle.loads(i.para))
+            grad = pickle.loads(i.para)
+            found = False
+            for existing_grad in grad_recv:
+                if np.array_equal(grad, existing_grad):
+                    found = True
+                    break
+            if not found:
+                grad_recv.append(grad)
         p2p.grad_list.clear()
         grad_recv.sort(key=lambda x: sum(x))
         print('grad_receive========',grad_recv)

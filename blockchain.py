@@ -1,6 +1,7 @@
 # coding:utf-8
 import grpc
 from ecdsa import SigningKey, NIST384p, VerifyingKey
+from pyparsing import Opt
 import grpc_pb2
 import grpc_pb2_grpc
 import time
@@ -9,9 +10,16 @@ import json
 import hashlib
 import threading
 import p2p
-
+import numpy as np
+import pickle
 _compiNum = re.compile("^\d+$")  # 判斷全數字用
 _compiW = re.compile("^\w{64}")
+
+max_message_length = 100 * 1024 * 1024  # 设置为 100 MB，可根据需要调整
+options = [
+    ('grpc.max_send_message_length', max_message_length),
+    ('grpc.max_receive_message_length', max_message_length),
+]
 
 # TODO
 with open('svkey.json', 'r', encoding='utf8')as fp:
@@ -66,6 +74,7 @@ class Blockchain:
                 txshash=[],
                 krumgrad=b''
             )
+            # print("tensor is :", tensor)
         else:
             block = grpc_pb2.Block(
                 height=self.lastBlock.height + 1,
@@ -74,6 +83,7 @@ class Blockchain:
                 txshash=[],
                 krumgrad=tensor
             )
+        # print("tensor is :", tensor)
         return block
 
     def leader_select(self):
@@ -96,6 +106,7 @@ class Blockchain:
         global block,pre_prepare_receive
         if self.role == 'leader':
             block = self.create_block(tensor)
+            # print(block)
             t = threading.Thread(target=self.pre_prepare(block))
             t.start()
             t.join()
@@ -138,6 +149,7 @@ class Blockchain:
                 count1 += 1
             if count1 > len(self.nodes) * 2 / 3:
                 # COMMIT
+                print("leader begin to commit")
                 t = threading.Thread(target=self.commit())
                 t.start()
                 t.join()
@@ -155,22 +167,25 @@ class Blockchain:
         request.data.block.CopyFrom(block)
         a = request.data.SerializeToString()
         request.signature = signing(sk, a)
+        print("lenth of the request is: ", len(request.SerializeToString()))
         self_node = set()
         self_node.add(p2p.SELF_IP_PORT)
-        print(self_node)
+        # print(self_node)
         nodes = set(p2p.Node.get_nodes_list()) - self_node
-        print("print nodes in broadcast:")
-        print(nodes)
+        # print("print nodes in broadcast:")
+        # print(nodes)
         for i in nodes:
-            channel = grpc.insecure_channel(i)
+            channel = grpc.insecure_channel(i, options=options)
+            # channel = grpc.insecure_channel(i)
             stub = grpc_pb2_grpc.ConsensusStub(channel)
             try:
                 # print("PRE-PREPARE checkpoint 1")
                 response = stub.PrePrepare(request)
                 # print("PRE-PREPARE checkpoint 2")
                 print(response.Result)
-            except:
+            except Exception as e:
                 print("CONNECTION FAILED IN PRE—PREPARE PHASE!")
+                print("Exception details:", e)
                 # PREPARE_flag=False
                 break
 
@@ -184,6 +199,22 @@ class Blockchain:
         request.data.node_id = self.node_id
         # krum_grad=Tensor.deserialize_torch_tensor(block.krumgrad)
         # krum_grad1=Tensor.deserialize_torch_tensor(tensor)
+        # print(type(block.krumgrad))
+    #     # print(type(tensor))
+    #     arr1 = np.frombuffer(tensor, dtype=np.uint8)
+    #     arr2 = np.frombuffer(block.krumgrad, dtype=np.uint8)
+
+    # # 对比
+    #     diff_indices = np.where(arr1 != arr2)[0]
+    #     print("不同位置:", diff_indices)
+    #     if len(arr1) != len(arr2):
+    #         print("长度不一致，多余的部分:")
+    #         if len(arr1) > len(arr2):
+    #             print("tensor多余:", arr1[len(arr2):])
+    #         else:
+    #             print("krumgrad多余:", arr2[len(arr1):])
+        print(pickle.loads(tensor))
+        print(pickle.loads(block.krumgrad))
         if tensor == block.krumgrad:
         # if krum_grad.equal(krum_grad1):
             request.data.vote = '1'
@@ -198,17 +229,20 @@ class Blockchain:
         print("print PERPARE nodes in broadcast:")
         print(nodes)
         for i in nodes:
-            channel = grpc.insecure_channel(i)
+            channel = grpc.insecure_channel(i, options=options)
+            # channel = grpc.insecure_channel(i)
             stub = grpc_pb2_grpc.ConsensusStub(channel)
             try:
                 # print("PREPARE checkpoint 1")
+                # print(request)
                 response = stub.Prepare(request)
                 # print("PREPARE checkpoint 2")
                 print(response.Result)
                 # PREPARE_flag=True
                 self.prepare_message_receive.append(response)
-            except:
+            except Exception as e:
                 print("CONNECTION FAILED IN PREPARE PHASE!")
+                print("Exception details:", e)
                 # PREPARE_flag=False
                 break
 
@@ -224,22 +258,26 @@ class Blockchain:
         request.signature = signing(sk, a)
         self_node = set()
         self_node.add(p2p.SELF_IP_PORT)
+        # print("length of the commit request is: ", len(a))
+        # print("======================")
         print(self_node)
         nodes = set(p2p.Node.get_nodes_list()) - self_node
         print("print nodes in broadcast:")
         print(nodes)
         for i in nodes:
-            channel = grpc.insecure_channel(i)
+            channel = grpc.insecure_channel(i, options=options)
+            # channel = grpc.insecure_channel(i)
             stub = grpc_pb2_grpc.ConsensusStub(channel)
             try:
-                # print("COMMIT checkpoint 1")
+                print("COMMIT checkpoint 1")
                 response = stub.Commit(request)
-                # print("COMMIT checkpoint 2")
+                print("COMMIT checkpoint 2")
                 print(response.Result)
                 self.commit_message_receive.append(response)
-            except:
+            except Exception as e:
                 print("CONNECTION FAILED IN COMMIT PHASE!")
                 # PREPARE_flag=False
+                print("Exception details:", e)
                 break
 
 

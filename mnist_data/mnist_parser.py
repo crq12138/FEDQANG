@@ -6,8 +6,7 @@ import matplotlib.pyplot as plt
 
 
 def main():
-
-    mndata = MNIST('')
+    mndata = MNIST('./MNIST/')
 
     images, labels = mndata.load_training()
     images_test, labels_test = mndata.load_testing()
@@ -101,7 +100,7 @@ def slice_uniform():
 
 def slice_for_tm():
 
-    mndata = MNIST('')
+    mndata = MNIST('/MNIST/')
 
     images, labels = mndata.load_training()
     images_test, labels_test = mndata.load_testing()

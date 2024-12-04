@@ -67,6 +67,7 @@ class Client():
 
     # TODO:: Get noise for diff priv
     def getGrad(self):
+        layers = np.zeros(0)
         for i, data in enumerate(self.trainloader, 0):
             # get the inputs
             inputs = data['image'].float()
@@ -80,16 +81,15 @@ class Client():
             outputs = self.model(inputs)
             loss = self.criterion(outputs, labels)
             loss.backward()
-            nn.utils.clip_grad_norm(self.model.parameters(), 100)
+            nn.utils.clip_grad_norm_(self.model.parameters(), 100)
             self.loss = loss.item()
 
             # TODO: Find more efficient way to flatten params
             # get gradients into layers
-            layers = np.zeros(0)
             for name, param in self.model.named_parameters():
                 if param.requires_grad:
                     layers = np.concatenate((layers, param.grad.numpy().flatten()), axis=None)
-            return layers
+        return layers    
 
     # Called when an aggregator receives a new gradient
     def updateGrad(self, gradient):
@@ -169,11 +169,12 @@ class Client():
         return 1 - accuracy_score(pred, labels)
 
 
-
+# 返回模型类
 def returnModel(D_in,D_out):
     model = SoftmaxModel(D_in, D_out)
     # model = MNISTCNNModel()
     return model
+# 高斯噪声
 def gaussian_noise(grad):
     noise_grad=grad
     global epsilon,sigama
@@ -203,12 +204,12 @@ def run(f):
     model = returnModel(D_in, D_out)
     client=Client("mnist", "mnist" + str(int(int(p2p.PORT)-50051)//2), batch_size, model, p2p.PORT, train_cut)
     node=p2p.Node()
-    # filename1 = "./log/4/DP/loss/" + "loss_" + str(node.PORT) + ".txt"
-    # filename2 = "./log/4/DP/error/" + "Test_error_" + str(node.PORT) + ".txt"
-    filename3 = "./log/30/DP/time/" + "time_correspond" + str(node.PORT) + ".txt"
-    filename4 = "./log/30/DP/time/" + "time_compute" + str(node.PORT) + ".txt"
-    # log_loss1 = open(filename1, "w")
-    # log_loss2 = open(filename2, "w")
+    filename1 = "./log/DP/loss/" + "loss_" + str(node.PORT) + ".txt"
+    filename2 = "./log/DP/error/" + "Test_error_" + str(node.PORT) + ".txt"
+    filename3 = "./log/DP/time/" + "time_correspond" + str(node.PORT) + ".txt"
+    filename4 = "./log/DP/time/" + "time_compute" + str(node.PORT) + ".txt"
+    log_loss1 = open(filename1, "w")
+    log_loss2 = open(filename2, "w")
     log_time1 = open(filename3, "w")
     log_time2 = open(filename4, "w")
     for iter in range(iter_time):
@@ -227,9 +228,19 @@ def run(f):
         node.broadcast(bc_enum.SERVICE * bc_enum.DESCOVERY + bc_enum.EXCHANGEGRAD, a)
         t4=time.time()
         time.sleep(3)
+        # for i in p2p.grad_list:
+        #     if i not in grad_recv:
+        #         grad_recv.append(pickle.loads(i.para))
+            # 假设每个梯度都有一个唯一的标识符，例如节点 ID
         for i in p2p.grad_list:
-            if i not in grad_recv:
-                grad_recv.append(pickle.loads(i.para))
+            grad = pickle.loads(i.para)
+            found = False
+            for existing_grad in grad_recv:
+                if np.array_equal(grad, existing_grad):
+                    found = True
+                    break
+            if not found:
+                grad_recv.append(grad)
         p2p.grad_list.clear()
         # Share updated model
         for i in grad_recv:
@@ -243,12 +254,12 @@ def run(f):
         print('============== EPOCH=', iter, '==============')
         print('============== time_cor=', t_cor, '==============')
         print('============== time_com=', t_com, '==============')
-        # print('============== LOSS = ', client.getLoss(), '==============')
-        # print('============== ERROR = ', client.getTestErr(), '==============')
-        # log_loss1.write('%d %3f\n' % (iter, client.getLoss()))
-        # log_loss2.write('%d %3f\n' % (iter, client.getTestErr()))
-        # log_loss1.flush()
-        # log_loss2.flush()
+        print('============== LOSS = ', client.getLoss(), '==============')
+        print('============== ERROR = ', client.getTestErr(), '==============')
+        log_loss1.write('%d %3f\n' % (iter, client.getLoss()))
+        log_loss2.write('%d %3f\n' % (iter, client.getTestErr()))
+        log_loss1.flush()
+        log_loss2.flush()
         log_time1.write('%d %3f\n' % (iter, t_cor))
         log_time2.write('%d %3f\n' % (iter, t_com))
         log_time1.flush()

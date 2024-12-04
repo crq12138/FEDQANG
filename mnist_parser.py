@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 
 def main():
 
-    mndata = MNIST('')
+    mndata = MNIST('./MNIST/raw/')
 
     images, labels = mndata.load_training()
     images_test, labels_test = mndata.load_testing()
@@ -59,7 +59,7 @@ def main():
 
 def slice_uniform():
 
-    mndata = MNIST('..')
+    mndata = MNIST('./MNIST/raw/')
 
     images, labels = mndata.load_training()
     images_test, labels_test = mndata.load_testing()
@@ -96,12 +96,12 @@ def slice_uniform():
         print("slice " + str(k) + " is shape " + str(data_slice.shape))
         np.save("mnist_unif" + str(k), data_slice)
 
-    pdb.set_trace()
+    # pdb.set_trace()
 
 
 def slice_for_tm():
 
-    mndata = MNIST('')
+    mndata = MNIST('./MNIST/raw/')
 
     images, labels = mndata.load_training()
     images_test, labels_test = mndata.load_testing()
@@ -129,7 +129,7 @@ def slice_for_tm():
     print("Standardize columns")
     Xtrain = Xtrain / 100.0
 
-    for k in range(4):
+    for k in range(10):
         idx = np.where((ytrain == k))[0]
         class_slice = Xtrain[idx]
         data_slice = np.hstack((class_slice, ytrain[idx][:, None]))
@@ -142,7 +142,7 @@ def slice_for_tm():
     test_slice = np.hstack((Xtest, np.reshape(ytest, (len(ytest), 1))))
     np.save("mnist_test", test_slice)
 
-    pdb.set_trace()
+    # pdb.set_trace()
 
 
 def show_digit(image):

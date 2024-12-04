@@ -21,6 +21,12 @@ link_broadcast_flag = False
 Node_lists=list()
 grad_list=list()
 
+max_message_length = 100 * 1024 * 1024  # 设置为 100 MB，可根据需要调整
+options = [
+    ('grpc.max_send_message_length', max_message_length),
+    ('grpc.max_receive_message_length', max_message_length),
+]
+
 def set_address(ipport, port):
     global SELF_IP_PORT, PORT
     SELF_IP_PORT = ipport
@@ -104,7 +110,12 @@ class Node:
             grpc_port = PORT
         print("grpc listen port:" + grpc_port)
         # grpc server
-        server = grpc.server(futures.ThreadPoolExecutor(max_workers=105))
+        # max_message_length = 100 * 1024 * 1024  # 设置为 100 MB，可根据需要调整
+        # options = [
+        #     ('grpc.max_send_message_length', max_message_length),
+        #     ('grpc.max_receive_message_length', max_message_length),
+        # ]
+        server = grpc.server(futures.ThreadPoolExecutor(max_workers=105), options=options)
         grpc_pb2_grpc.add_DiscoveryServicer_to_server(Discovery(), server)
         # grpc_pb2_grpc.add_SynchronizationServicer_to_server(synchronization.Synchronization(), server)
         grpc_pb2_grpc.add_ConsensusServicer_to_server(blockchain.Consensus(), server)
@@ -149,7 +160,7 @@ class Node:
     # send
     def send(self, node, task, message):
         try:
-            channel = grpc.insecure_channel(node)
+            channel = grpc.insecure_channel(node, options=options)
             task_type, task = int(task / bc_enum.SERVICE), int(task % bc_enum.SERVICE)
             if task_type == bc_enum.DESCOVERY:
                 stub = grpc_pb2_grpc.DiscoveryStub(channel)
@@ -179,7 +190,7 @@ class Node:
         num=0
         stubs=list()
         for i in nodes:
-            channel = grpc.insecure_channel(i)
+            channel = grpc.insecure_channel(i, options=options)
             stub= grpc_pb2_grpc.DiscoveryStub(channel)
             stubs.append(stub)
         for i in stubs:
@@ -187,7 +198,7 @@ class Node:
         return
 
 def send_epoch_over(node):
-    channel = grpc.insecure_channel(node)
+    channel = grpc.insecure_channel(node, options=options)
     stub = grpc_pb2_grpc.DiscoveryStub(channel)
     stub.Epoch_over(grpc_pb2.Epoch(flag='1'))
 
@@ -272,7 +283,7 @@ def grpcJoinNode(target,node):
         return True
     ip = result.group(1)
     print("<= grpc link to %s" % target)
-    channel = grpc.insecure_channel(target)
+    channel = grpc.insecure_channel(target, options=options)
     stub = grpc_pb2_grpc.DiscoveryStub(channel)
     time.sleep(3)
     try:

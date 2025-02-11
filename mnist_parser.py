@@ -56,6 +56,78 @@ def main():
 
     pdb.set_trace()
 
+def dirichlet_split_noniid(alpha=0.5, client_number=5):
+    '''
+    使用参数 alpha 的 Dirichlet 分布将训练数据划分为 client_number 个非 IID 子集，并保存每个子集的数据。
+    
+    参数:
+        alpha (float): Dirichlet 分布的参数，控制分布的均匀性。较小的 alpha 值会导致更不均匀的分布。
+        client_number (int): 客户端的数量。
+    '''
+    mndata = MNIST('./MNIST/raw/')
+    images, labels = mndata.load_training()
+    n = len(images)
+    d = len(images[0])
+
+    Xtrain = np.zeros((n, d))
+    ytrain = np.asarray(labels)
+
+    for i in range(n):
+        Xtrain[i, :] = np.asarray(images[i])
+
+    # 标准化每一列
+    print("Standardize columns")
+    Xtrain = Xtrain / 100.0
+
+    # 使用 Dirichlet 分布进行数据划分
+    client_idcs = dirichlet_split_noniid_split(ytrain, alpha=alpha, client_number=client_number)
+
+    # 保存每个客户端的数据
+    for client_idx, idcs in enumerate(client_idcs):
+        client_X = Xtrain[idcs]
+        client_y = ytrain[idcs]
+        client_data = np.hstack((client_X, client_y[:, None]))
+        np.save(f"mnist_noniid_{alpha}_client_{client_idx}", client_data)
+        print(f"Client {client_idx} data saved with shape {client_data.shape}")
+
+def dirichlet_split_noniid_split(train_labels, alpha=0.5, client_number=5):
+    '''
+    使用参数 alpha 的 Dirichlet 分布将数据索引划分为 client_number 个子集，实现非 IID 分布。
+    
+    参数:
+        train_labels (np.ndarray): 训练数据的标签数组。
+        alpha (float): Dirichlet 分布的参数，控制分布的均匀性。
+        client_number (int): 客户端的数量。
+    
+    返回:
+        client_idcs (List[np.ndarray]): 每个客户端对应的样本索引列表。
+    '''
+    n_clients = client_number
+    n_classes = train_labels.max() + 1  # 总类别数
+    
+    # 为每个类别生成 Dirichlet 分布的比例
+    label_distribution = np.random.dirichlet([alpha] * n_clients, n_classes)
+    
+    # 记录每个类别对应的样本下标
+    class_idcs = [np.argwhere(train_labels == y).flatten() for y in range(n_classes)]
+    
+    # 初始化每个客户端的样本索引列表
+    client_idcs = [[] for _ in range(n_clients)]
+    
+    # 对每个类别进行分配
+    for c, fracs in zip(class_idcs, label_distribution):
+        np.random.shuffle(c)  # 打乱类别内的样本顺序
+        proportions = (np.cumsum(fracs)[:-1] * len(c)).astype(int)
+        split_idcs = np.split(c, proportions)
+        for i, idcs in enumerate(split_idcs):
+            client_idcs[i].extend(idcs)
+    
+    # 转换为 NumPy 数组
+    client_idcs = [np.array(idcs) for idcs in client_idcs]
+    
+    return client_idcs
+
+
 
 def slice_uniform():
 
@@ -94,7 +166,7 @@ def slice_uniform():
         data_slice = np.hstack((class_slice, ytrain[randIdx][:, None]))
 
         print("slice " + str(k) + " is shape " + str(data_slice.shape))
-        np.save("mnist_unif" + str(k), data_slice)
+        np.save("mnist_unif_10000_" + str(k), data_slice)
 
     # pdb.set_trace()
 
@@ -169,3 +241,4 @@ if __name__ == "__main__":
 
     # slice_uniform()
     slice_for_tm()
+    # dirichlet_split_noniid(alpha=0.1, client_number=10)

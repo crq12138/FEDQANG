@@ -20,6 +20,7 @@ class MNISTDataset(Dataset):
         self.transform = transform
         data = np.load(os.path.join(root_dir, filename + ".npy"))
         n, d = data.shape
+        self.n = n
 
         cut = int(n*train_cut)
         if is_train:
@@ -43,3 +44,9 @@ class MNISTDataset(Dataset):
     
     def getData(self):
         return self.X, self.y
+    # 
+
+# data = np.load("./mnist/mnist_noniid_0.1_client_1.npy")
+# print(data.shape)
+# print(data.__len__)
+# dataset = MNISTDataset("mnist_noniid_0.1_client_5", "./mnist")

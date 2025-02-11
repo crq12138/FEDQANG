@@ -39,9 +39,9 @@ def generate_rsa_keys():
     public_key = private_key.public_key()
     return private_key, public_key
 
-# TODO
-with open('svkey.json', 'r', encoding='utf8')as fp:
-    svkey = json.load(fp)
+# # TODO
+# with open('svkey.json', 'r', encoding='utf8')as fp:
+#     svkey = json.load(fp)
 
 # def encrypt_block(block, public_key):
 #     # block_bytes = pickle.dumps(block)
@@ -102,7 +102,7 @@ def hash_block(block: grpc_pb2.Block) -> str:
     return hash
 
 
-global pre_prepare_receive
+# global pre_prepare_receive
 global final_block_receive
 block_list = list()
 key_list = list()
@@ -155,7 +155,7 @@ class Blockchain:
             seed = "genesis"
         else:
             seed = hash_block(self.lastBlock)
-        print("seed is ", seed)
+        # print("seed is ", seed)
         self.committee = self.hash_ring.get_nodes_for_committee(seed, self.committee_size)
         print("委员会成员选举完成:", self.committee)
 
@@ -170,24 +170,31 @@ class Blockchain:
         # block_list.clear()
         final_block_receive = None
         self.final_block = None
+        # print("===============================目前最新的区块内容===============================")
+        # time.sleep(3)
+        print(block.height)
 
-    def create_block(self,tensor) -> grpc_pb2.Block:
+    def create_block(self,tensor, quality_score_dict = b'') -> grpc_pb2.Block:
         if self.lastBlock is None:
             block = grpc_pb2.Block(
                 height=1,
                 timestamp=0,
                 previoushash=b'',
                 txshash=[],
-                krumgrad=b''
+                krumgrad=b'',
+                quality = b'',
+                credit = []
             )
             # print("tensor is :", tensor)
         else:
             block = grpc_pb2.Block(
                 height=self.lastBlock.height + 1,
-                # timestamp=int(time.time()),
+                timestamp=int(time.time()),
                 previoushash=hash_block(self.lastBlock),
                 txshash=[],
-                krumgrad=tensor
+                krumgrad=tensor,
+                quality = quality_score_dict,
+                credit = []
             )
         # print("tensor is :", tensor)
         return block
@@ -203,14 +210,14 @@ class Blockchain:
         return block.tx
 
 
-    def consensus_process(self, krum_grad_bytes):
+    def consensus_process(self, krum_grad_bytes, quality_score_dict):
         # global final_block
         global key_list, block_list
         # global final_block_receive
         # sk = SigningKey.from_string(bytes.fromhex(svkey[self.node_id][0]), curve=NIST384p)
 
         # 1. 创建备选区块
-        candidate_block = self.create_block(krum_grad_bytes)
+        candidate_block = self.create_block(krum_grad_bytes, pickle.dumps(quality_score_dict))
         block_bytes = pickle.dumps(candidate_block)
 
         # 2. 生成密钥对
@@ -223,27 +230,6 @@ class Blockchain:
         t = threading.Thread(target=self.Block_send(encrypted_block))
         t.start()
         t.join()
-        # self_node = set()
-        # self_node.add(p2p.SELF_IP_PORT)
-        # nodes = self.committee - self_node
-
-        # # 加密区块作为发送的消息
-        # request = grpc_pb2.Blockmessage()
-        # print(type(self.node_id))
-        # request.Data.node_id = self.node_id
-        # request.Data.block = encrypted_block
-        # for member in nodes:
-        #     channel = grpc.insecure_channel(member, options=options)
-        #     stub = grpc_pb2_grpc.ConsensusStub(channel)
-        #     try:
-        #         response = stub.BroadBlock(request)
-        #         print(response.Result)
-        #     except Exception as e:
-        #         print("CONNECTION FAILED IN BroadBlock PHASE!")
-        #         print("Exception details:", e)
-        #         # PREPARE_flag=False
-        #         break
-
         print("开始等待其余委员会的备选区块传播")
         while(len(block_list) != self.committee_size):
             time.sleep(2)
@@ -254,32 +240,6 @@ class Blockchain:
         t = threading.Thread(target=self.Key_send(key, iv))
         t.start()
         t.join()
-        # 私钥作为发送的消息
-        # request_2 = grpc_pb2.Privatemessage()
-        # request_2.Data.node_id = self.node_id
-        # # pri_key = pickle.dumps(private_key)
-        # # private_key_pem = private_key.private_bytes(
-        # #     encoding=serialization.Encoding.PEM,
-        # #     format=serialization.PrivateFormat.PKCS8,
-        # #     encryption_algorithm=serialization.NoEncryption()  # 不加密
-        # # )
-        # request_2.Data.key = key
-        # request_2.Data.iv = iv
-        # self_node = set()
-        # self_node.add(p2p.SELF_IP_PORT)
-        # nodes = self.committee - self_node
-        # for member in nodes:
-        #     channel = grpc.insecure_channel(member, options=options)
-        #     stub = grpc_pb2_grpc.ConsensusStub(channel)
-        #     try:
-        #         response = stub.BroadKey(request)
-        #         print(response.Result)
-        #     except Exception as e:
-        #         print("CONNECTION FAILED IN BroadKey PHASE!")
-        #         print("Exception details:", e)
-        #         # PREPARE_flag=False
-        #         break
-        # key_list.append({"node_id": self.node_id, "key": key, "iv": iv})
         print("开始等待其余委员会的私钥传播")
         while(len(key_list) != self.committee_size):
             time.sleep(2)
@@ -408,7 +368,7 @@ class Blockchain:
             final_block_receive = self.final_block
             self.add_block(self.final_block)
         else:
-            print(min(self.committee, key=lambda node: int(node.split(":")[1])))
+            # print(min(self.committee, key=lambda node: int(node.split(":")[1])))
             while(final_block_receive == None):
                 time.sleep(2)
                 continue
@@ -439,6 +399,7 @@ class Consensus(grpc_pb2_grpc.ConsensusServicer):
         global final_block_receive
         print("it is BroadFinalBlock")
         final_block_receive = request.block
+        p2p.quality_score_dict = pickle.loads(request.block.quality)
         return grpc_pb2.ConsensusRsp(Result='New Block Received Successfully')
     
     # def ExchangeGrad(self, request, context):

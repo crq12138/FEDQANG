@@ -21,6 +21,10 @@ Epoch_overing=False
 link_broadcast_flag = False
 Node_lists=list()
 grad_list=list()
+datasize_list=list()
+Model_list = list()
+port_list = list()
+quality_score_dict = dict()
 
 max_message_length = 100 * 1024 * 1024  # 设置为 100 MB
 options = [
@@ -93,6 +97,11 @@ class Node:
             print(e)
 
     @staticmethod
+    def get_model_list():
+        global Model_list
+        return Model_list
+
+    @staticmethod
     def del_node(node):
         test = Node.get_nodes_list()
         test.remove(node)
@@ -114,15 +123,11 @@ class Node:
         except:
             grpc_port = PORT
         print("grpc listen port:" + grpc_port)
-        # grpc server
-        # max_message_length = 100 * 1024 * 1024  # 设置为 100 MB，可根据需要调整
-        # options = [
-        #     ('grpc.max_send_message_length', max_message_length),
-        #     ('grpc.max_receive_message_length', max_message_length),
-        # ]
         server = grpc.server(futures.ThreadPoolExecutor(max_workers=105), options=options)
         grpc_pb2_grpc.add_DiscoveryServicer_to_server(Discovery(), server)
         # grpc_pb2_grpc.add_SynchronizationServicer_to_server(synchronization.Synchronization(), server)
+        import game_process
+        grpc_pb2_grpc.add_GameServicer_to_server(game_process.Game(), server)
         grpc_pb2_grpc.add_ConsensusServicer_to_server(blockchain.Consensus(), server)
         server.add_insecure_port("127.0.0.1:%s" % PORT)
         server.start()
@@ -188,7 +193,7 @@ class Node:
     #         # Node.del_node(node)
     #     return
 
-    def send(self, task, message, target_node):
+    def send(self, task, message, target_node, datasize = 0):
         """发送消息到指定的目标节点"""
         try:
             channel = grpc.insecure_channel(target_node, options=options)
@@ -196,13 +201,14 @@ class Node:
             if task_type == bc_enum.DESCOVERY:
                 stub = grpc_pb2_grpc.DiscoveryStub(channel)
                 if task_sub == bc_enum.EXCHANGENODE:
-                    response = stub.ExchangeNode(grpc_pb2.Node(number=self.get_length(), ipport=self.get_nodes_list()))
+                    port_list.append(PORT)
+                    response = stub.ExchangeNode(grpc_pb2.Node(number=self.get_length(), ipport=self.get_nodes_list(), port = PORT))
                     # 处理响应
                     for i in response.ipport:
                        if i not in Node_lists:
                             self.add(i)
                 elif task_sub == bc_enum.EXCHANGEGRAD:
-                    response = stub.ExchangeGrad(grpc_pb2.Parameter(para=message))
+                    response = stub.ExchangeGrad(grpc_pb2.Parameter(para=message, datasize = datasize))
                     print(f"发送梯度到 {target_node}: {response.Result}")
             elif task_type == bc_enum.SYNCHRONIZATION:
                 stub = grpc_pb2_grpc.SynchronizationStub(channel)
@@ -210,11 +216,47 @@ class Node:
         except Exception as e:
             print(f"发送消息到 {target_node} 失败: {e}")
 
-    def send_grad(self, grad, target_node):
+    def send_grad(self, grad, target_node, datasize):
         """发送梯度到指定的目标节点"""
         # grad_bytes = pickle.dumps(grad)
         task = bc_enum.SERVICE * bc_enum.DESCOVERY + bc_enum.EXCHANGEGRAD
-        self.send(task, grad, target_node)
+        # print(type(datasize))
+        self.send(task, grad, target_node, datasize)
+
+    def send_model(self, model):
+        """发送模型到所有节点"""
+        try:
+            print("p2p.py 开始运行send_model")
+            model_bytes = pickle.dumps(model)
+            self_node = set()
+            self_node.add(SELF_IP_PORT)
+            nodes = set(self.get_nodes_list())
+            targets_nodes = nodes - self_node
+            request = grpc_pb2.Modelmessage()
+            request.Model = model_bytes
+            for node in targets_nodes:
+                channel = grpc.insecure_channel(node, options=options)
+                stub = grpc_pb2_grpc.DiscoveryStub(channel)
+                response = stub.ExchangeModel(request)
+                print(response.Result)
+            # channel = grpc.insecure_channel(target_node, options=options)
+            # task_type, task_sub = int(task / bc_enum.SERVICE), int(task % bc_enum.SERVICE)
+            # if task_type == bc_enum.DESCOVERY:
+            #     stub = grpc_pb2_grpc.DiscoveryStub(channel)
+            #     if task_sub == bc_enum.EXCHANGENODE:
+            #         response = stub.ExchangeNode(grpc_pb2.Node(number=self.get_length(), ipport=self.get_nodes_list()))
+            #         # 处理响应
+            #         for i in response.ipport:
+            #            if i not in Node_lists:
+            #                 self.add(i)
+            #     elif task_sub == bc_enum.EXCHANGEGRAD:
+            #         response = stub.ExchangeGrad(grpc_pb2.Parameter(para=message))
+            #         print(f"发送梯度到 {target_node}: {response.Result}")
+            # elif task_type == bc_enum.SYNCHRONIZATION:
+            #     stub = grpc_pb2_grpc.SynchronizationStub(channel)
+                # 根据 task_sub 处理同步任务
+        except Exception as e:
+            print(f"发送模型到 {node} 失败: {e}")
 
     def send_epoch(self):
         self_node = set()
@@ -273,7 +315,8 @@ def talk_you_ip(node_port,node):
 class Discovery(grpc_pb2_grpc.DiscoveryServicer):
     # exchange node list
     def ExchangeNode(self, request, context):
-        global Node_lists
+        global Node_lists, port_list
+        port_list.append(request.port)
         # print("I am here!!!!!!!!!!!!!!!!!!!!!")
         for i in request.ipport:
             if i not in Node_lists:
@@ -297,9 +340,16 @@ class Discovery(grpc_pb2_grpc.DiscoveryServicer):
         port = talk_you_ip(nodePort,node)
         return grpc_pb2.Message(value=str(port))
 
+    def ExchangeModel(self,request,context):
+        global Model_list
+        model = pickle.loads(request.Model)
+        Model_list.append(model)
+        return grpc_pb2.TensorReceive(Result='Model Received Successfully')
+
     def ExchangeGrad(self,request,context):
-        global grad_list
-        grad_list.append(request)
+        global grad_list, datasize_list
+        datasize_list.append(request.datasize)
+        grad_list.append(request.para)
         return grpc_pb2.TensorReceive(Result='Grad Received Successfully')
     def Epoch_over(self,request,context):
         global Epoch_overing

@@ -5,6 +5,7 @@ import sys
 # import blockchain
 import threading
 import key_Generate
+# import MNIST_CNN_local
 # import MNIST_training_DP
 # import MNIST_training_pure
 import MNIST_CNN

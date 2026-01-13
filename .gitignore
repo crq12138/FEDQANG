@@ -1,7 +1,7 @@
 # --- 截图中标出的必须要忽略的大数据集 ---
-/cifar-10-batches-py/
-/mnist/
-/MNIST/
+# /cifar-10-batches-py/
+# /mnist/
+# /MNIST/
 # --- 强烈建议忽略的 Python 缓存文件 (截图中有显示) ---
 __pycache__/
 *.pyc

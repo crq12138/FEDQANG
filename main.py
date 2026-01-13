@@ -3,8 +3,7 @@ import time
 import sys
 # print(sys.path)
 # import blockchain
-import threading
-import key_Generate
+# import threading
 # import MNIST_CNN_local
 # import MNIST_training_DP
 # import MNIST_training_pure

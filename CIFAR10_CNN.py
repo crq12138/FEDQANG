@@ -1,27 +1,45 @@
 import time
 import math
-import torch
-# import torch.nn as nn
-# import torch.optim as optim
-import torch.utils.data
 import random
-# from torch.autograd import Variable
-# import torchvision.transforms as transforms
-# from sklearn.metrics import accuracy_score
-import numpy as np
-# import pdb
-import datasets
 import pickle
+from dataclasses import dataclass
+
+import torch
+import torch.utils.data
+import numpy as np
+
+import datasets
 import bc_enum
 import p2p
-# from blockchain import Blockchain
-# import torch.nn.functional as F
 from cifar_cnn_model import CIFARCNNModel
 from client_CIFAR import Client
 from transfer import incentive
 from CIFAR10_CNN_path import path
+
 epsilon = 0.04
-sigama=1e-5
+sigama = 1e-5
+
+
+@dataclass(frozen=True)
+class ExperimentConfig:
+    iter_time: int = 100
+    batch_size: int = 128
+    train_cut: float = 1.0
+    seed: int = 42
+    wait_for_network_s: float = 5.0
+    quality_score_init: float = 1.0
+
+    # Experiment toggles
+    use_game_process: bool = True
+    send_initial_model: bool = False
+    use_noise: bool = False
+    zero_grad_when_small: bool = True
+
+    # Dataset selection rule
+    use_cifar_unif_threshold: int = 50052
+    cifar_unif_prefix: str = "cifar10_unif_10000_"
+    cifar_prefix: str = "cifar10_"
+    dataset_dir: str = "cifar-10-batches-py/cifar10"
 
 
 def print_model_parameters(model, num_values=5):
@@ -37,6 +55,8 @@ def print_model_parameters(model, num_values=5):
         # .cpu() 将参数拷贝到 CPU 上，避免 GPU 上打印不方便
         print(f"Values (first {num_values}): {param.flatten().cpu().data[:num_values]}")
         print("-" * 50)
+
+
 def set_seed(seed: int):
     """
     设置 Python 内置、Numpy、PyTorch(CPU和GPU)的随机种子，以保证实验结果的可复现性。
@@ -45,6 +65,7 @@ def set_seed(seed: int):
     np.random.seed(seed)
     torch.manual_seed(seed)
     torch.cuda.manual_seed_all(seed)
+
 
 def returnModel(D_in, D_out, seed):
     # model = SoftmaxModel(D_in, D_out)
@@ -62,61 +83,65 @@ def calculate_model_size(model):
     print(f"模型大小: {total_size / 1024:.2f} KB")
     return total_size
 
+
+def get_dataset_name(port, config: ExperimentConfig):
+    if int(port) < config.use_cifar_unif_threshold:
+        return f"{config.cifar_prefix}{int(int(port) - 50051) // 2}"
+    return f"{config.cifar_unif_prefix}{int(int(port) - 50051) // 2}"
+
+
+def log_paths(node_port):
+    return {
+        "loss": f"{path}loss/loss_{node_port}.txt",
+        "error": f"{path}error/Test_error_{node_port}.txt",
+        "quality": f"{path}quality_score/Quality_score_{node_port}.txt",
+        "transfer": f"{path}pay_off/Transfer_{node_port}.txt",
+    }
+
+
+def gaussian_noise(grad):
+    """
+    可选的噪声注入接口：如需启用，请在此实现噪声逻辑。
+    """
+    raise NotImplementedError("gaussian_noise 未实现；请根据实验需求补充。")
+
 new_error = 0.0
 min_error = 1.0
 min_count = 0
 # blockchain_instance = Blockchain()
 def run(f):
     global new_error, min_error, min_count
-    iter_time = 100
+    config = ExperimentConfig()
     D_in = datasets.get_num_features("cifar")
     D_out = datasets.get_num_classes("cifar")
-    batch_size = 128
-    train_cut = 1.0
-    seed = 42
-    model = returnModel(D_in, D_out, seed)
+    model = returnModel(D_in, D_out, config.seed)
     print("length of the model is ", calculate_model_size(model))
     # print("===== Model A parameters =====")
     # print_model_parameters(model)
     # time.sleep(15)
-    node=p2p.Node()
+    node = p2p.Node()
     
     from core import blockchain_instance
     import game_process
-    if int(p2p.PORT) < 50052:
-        client=Client("cifar", 
-                  "cifar10_" + str(int(int(p2p.PORT)-50051)//2), 
-                  "cifar-10-batches-py/cifar10",
-                  batch_size, model, 
-                  p2p.SELF_IP_PORT, 
-                  train_cut, 
-                  p2p_node=node)
-    else:
-        client=Client("cifar", 
-                  "cifar10_unif_10000_" + str(int(int(p2p.PORT)-50051)//2), 
-                  "cifar-10-batches-py/cifar10",
-                  batch_size, model, 
-                  p2p.SELF_IP_PORT, 
-                  train_cut, 
-                  p2p_node=node)
-    # client=Client("cifar", 
-    #               "cifar10_unif_10000_" + str(int(int(p2p.PORT)-50051)//2), 
-    #               "cifar-10-batches-py/cifar10",
-    #               batch_size, model, 
-    #               p2p.SELF_IP_PORT, 
-    #               train_cut, 
-    #               p2p_node=node)
+    dataset_name = get_dataset_name(p2p.PORT, config)
+    client = Client(
+        "cifar",
+        dataset_name,
+        config.dataset_dir,
+        config.batch_size,
+        model,
+        p2p.SELF_IP_PORT,
+        config.train_cut,
+        p2p_node=node,
+    )
     
     client.TestLoss()
     new_error = client.getTestErr()
-    filename1 = path + "loss/loss_" + str(node.PORT) + ".txt"
-    filename2 = path + "error/Test_error_" + str(node.PORT) + ".txt"
-    filename3 = path + "quality_score/Quality_score_" + str(node.PORT) + ".txt"
-    filename4 = path + "pay_off/Transfer_" + str(node.PORT) + ".txt"
-    log_loss1 = open(filename1, "w")
-    log_loss2 = open(filename2, "w")
-    log_loss3 = open(filename3, "w")
-    log_loss4 = open(filename4, "w")
+    paths = log_paths(node.PORT)
+    log_loss1 = open(paths["loss"], "w")
+    log_loss2 = open(paths["error"], "w")
+    log_loss3 = open(paths["quality"], "w")
+    log_loss4 = open(paths["transfer"], "w")
     blockchain = blockchain_instance
     # models = []
     non_committee = len(blockchain.nodes) - blockchain.committee_size
@@ -125,19 +150,19 @@ def run(f):
     port_list = [addr.split(':')[1] for addr in node_list]
     for port in port_list:
         if port not in p2p.quality_score_dict:
-            p2p.quality_score_dict[port] = 1.0
+            p2p.quality_score_dict[port] = config.quality_score_init
 
     
     
-    for iter in range(iter_time):
+    for iter in range(config.iter_time):
         # 每轮开始前选举委员会成员（已在 Blockchain 类中实现）
         # 获取当前节点是否为委员会成员
         node.broadcast(bc_enum.SERVICE * bc_enum.DESCOVERY + bc_enum.EXCHANGENODE, None)
         # blockchain.elect_committee()  # 已在 add_block 中调用，不需要手动调用
         is_committee = client.is_committee_member()
-        # if(iter == 0):
-        #     print("开始获取初始全局模型")
-        #     client.send_models()
+        if config.send_initial_model and iter == 0:
+            print("开始获取初始全局模型")
+            client.send_models()
         
         Loss = client.getLoss()
 
@@ -145,26 +170,27 @@ def run(f):
         if not is_committee:
             print("此节点不是委员会成员，开始进行梯度计算并发送梯度")
             # 非委员会成员：训练、获取梯度、发送给委员会成员
-            # print(p2p.quality_score_dict)
-            # time.sleep(10)
-            train_data_size, cost, payoff = game_process.decentralized_game(client, Loss, iter)
-            if train_data_size <= 128:
-            # if int(p2p.PORT) <= 50054:
-                grad = torch.zeros(319242)
-                client.datasize = 0
+            cost = 0
+            if config.use_game_process:
+                train_data_size, cost, payoff = game_process.decentralized_game(client, Loss, iter)
+                if config.zero_grad_when_small and train_data_size <= 128:
+                    grad = torch.zeros(319242)
+                    client.datasize = 0
+                else:
+                    client.set_train_datasize(train_data_size)
+                    grad = client.getGrad()
             else:
-                client.set_train_datasize(train_data_size)
                 grad = client.getGrad()
-            # grad = client.getGrad()
-            # grad_noised = gaussian_noise(grad)
-            # grad_noised = grad
+
+            if config.use_noise:
+                grad = gaussian_noise(grad)
             client.send_grad_to_committee(grad, cost)
             print(f"Epoch {iter}: 梯度已发送给委员会成员。")
             
         else:
             # 委员会成员：收集所有非委员会成员的梯度
             # 等待梯度收集完成
-            time.sleep(5)
+            time.sleep(config.wait_for_network_s)
             print(f"Epoch {iter}: 作为委员会成员，开始收集梯度。")
             while(len(p2p.grad_list) != non_committee):
                 time.sleep(2)
@@ -297,8 +323,6 @@ def average(vecs, datasize_recv):
     
     return avg_vec
 
-import numpy as np
-
 def update_quality_scores(
         grad_recv,          # list[np.ndarray]  本轮各客户端梯度 g_i
         w_avg,              # np.ndarray        加权全局梯度 w_avg
@@ -353,6 +377,4 @@ def update_quality_scores(
         p2p.quality_score_dict[port] += delta_q
 
     print("质量分数已更新:", p2p.quality_score_dict)
-
-
 

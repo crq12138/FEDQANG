@@ -47,12 +47,7 @@ def print_model_parameters(model, num_values=5):
     打印模型每个参数张量名、形状，以及前 num_values 个元素.
     """
     for name, param in model.named_parameters():
-        # 打印参数名和形状
         print(f"Parameter name: {name}, shape: {param.shape}")
-        
-        # 打印该参数中前 num_values 个元素
-        # .flatten() 用来将多维张量展开为一维方便显示
-        # .cpu() 将参数拷贝到 CPU 上，避免 GPU 上打印不方便
         print(f"Values (first {num_values}): {param.flatten().cpu().data[:num_values]}")
         print("-" * 50)
 
@@ -68,7 +63,6 @@ def set_seed(seed: int):
 
 
 def returnModel(D_in, D_out, seed):
-    # model = SoftmaxModel(D_in, D_out)
     set_seed(seed)
     model = CIFARCNNModel(D_in, D_out)
     return model
@@ -108,7 +102,7 @@ def gaussian_noise(grad):
 new_error = 0.0
 min_error = 1.0
 min_count = 0
-# blockchain_instance = Blockchain()
+
 def run(f):
     global new_error, min_error, min_count
     config = ExperimentConfig()
@@ -116,9 +110,7 @@ def run(f):
     D_out = datasets.get_num_classes("cifar")
     model = returnModel(D_in, D_out, config.seed)
     print("length of the model is ", calculate_model_size(model))
-    # print("===== Model A parameters =====")
-    # print_model_parameters(model)
-    # time.sleep(15)
+    
     node = p2p.Node()
     
     from core import blockchain_instance
@@ -135,6 +127,10 @@ def run(f):
         p2p_node=node,
     )
     
+    # ==== 1. 加载 Proxy Consensus Dataset (Root Dataset) ====
+    # 使用 config.dataset_dir 作为 root_dir, sample_size 可根据实验调整
+    root_loader = datasets.get_proxy_dataloader("cifar", config.dataset_dir, batch_size=config.batch_size, sample_size=200)
+
     client.TestLoss()
     new_error = client.getTestErr()
     paths = log_paths(node.PORT)
@@ -143,7 +139,7 @@ def run(f):
     log_loss3 = open(paths["quality"], "w")
     log_loss4 = open(paths["transfer"], "w")
     blockchain = blockchain_instance
-    # models = []
+
     non_committee = len(blockchain.nodes) - blockchain.committee_size
     node.broadcast(bc_enum.SERVICE * bc_enum.DESCOVERY + bc_enum.EXCHANGENODE, None)
     node_list = node.get_nodes_list()
@@ -153,12 +149,9 @@ def run(f):
             p2p.quality_score_dict[port] = config.quality_score_init
 
     
-    
     for iter in range(config.iter_time):
         # 每轮开始前选举委员会成员（已在 Blockchain 类中实现）
-        # 获取当前节点是否为委员会成员
         node.broadcast(bc_enum.SERVICE * bc_enum.DESCOVERY + bc_enum.EXCHANGENODE, None)
-        # blockchain.elect_committee()  # 已在 add_block 中调用，不需要手动调用
         is_committee = client.is_committee_member()
         if config.send_initial_model and iter == 0:
             print("开始获取初始全局模型")
@@ -166,13 +159,13 @@ def run(f):
         
         Loss = client.getLoss()
 
-
         if not is_committee:
             print("此节点不是委员会成员，开始进行梯度计算并发送梯度")
-            # 非委员会成员：训练、获取梯度、发送给委员会成员
             cost = 0
             if config.use_game_process:
                 train_data_size, cost, payoff = game_process.decentralized_game(client, Loss, iter)
+                log_loss4.write(f"{iter} {payoff}\n")
+                log_loss4.flush()
                 if config.zero_grad_when_small and train_data_size <= 128:
                     grad = torch.zeros(319242)
                     client.datasize = 0
@@ -181,6 +174,8 @@ def run(f):
                     grad = client.getGrad()
             else:
                 grad = client.getGrad()
+                log_loss4.write(f"{iter} {p2p.transfer_dict[p2p.PORT]}\n")
+                log_loss4.flush()
 
             if config.use_noise:
                 grad = gaussian_noise(grad)
@@ -189,7 +184,6 @@ def run(f):
             
         else:
             # 委员会成员：收集所有非委员会成员的梯度
-            # 等待梯度收集完成
             time.sleep(config.wait_for_network_s)
             print(f"Epoch {iter}: 作为委员会成员，开始收集梯度。")
             while(len(p2p.grad_list) != non_committee):
@@ -199,8 +193,6 @@ def run(f):
             cost_list = []
             cost_list = p2p.cost_list.copy()
             datasize_recv = p2p.datasize_list.copy()
-            # print(datasize_recv)
-            # time.sleep(3000)
             port_recv = p2p.port_list.copy()
             for grad_msg in p2p.grad_list:
                 grad = pickle.loads(grad_msg)
@@ -212,8 +204,8 @@ def run(f):
             p2p.port_list.clear()
             p2p.cost_list.clear()
             print(f"Epoch {iter}: 委员会 {p2p.PORT} 收集到 {len(grad_recv)} 个梯度。")
+            
             krum_grad1 = average(grad_recv, datasize_recv)
-            # print(port_recv)
             p2p.transfer_dict = incentive(cost_list, port_recv, krum_grad1, grad_recv)
             for item in blockchain.committee:
                 p2p.transfer_dict[item.split(':')[1]] = 0.0
@@ -221,7 +213,10 @@ def run(f):
             
             print(p2p.transfer_dict)
             print(datasize_recv)
-            update_quality_scores(grad_recv, krum_grad1, port_recv)
+            
+            # ==== 2. 调用新的质量评估函数 (Validation Gain) ====
+            update_quality_scores(grad_recv, port_recv, client, root_loader)
+            
             print('grad_receive11111========',grad_recv)
             krum_grad_bytes = pickle.dumps(krum_grad1)
 
@@ -231,9 +226,10 @@ def run(f):
             print(f"Epoch {iter}: 区块链共识完成。")
             
         blockchain.receive_new_block()
-        # if iter == 2:
+        
         # print("共识后的质量分数字典为", p2p.quality_score_dict)    
         # print("共识后的系统内部货币转移字典为", p2p.transfer_dict)
+        
         client.TestLoss()
         new_error = client.getTestErr()
         if min_error > new_error:
@@ -246,7 +242,7 @@ def run(f):
         log_loss2.write(f"{iter} {new_error}\n")
         log_loss3.write(f"{iter} {p2p.quality_score_dict[p2p.PORT]}\n")
         log_loss4.write(f"{iter} {p2p.transfer_dict[p2p.PORT]}\n")
-        # log_loss3.write(f"{iter} {0.0}\n")  # 这里的时间记录需要进一步完善
+        
         log_loss1.flush()
         log_loss2.flush()
         log_loss3.flush()
@@ -265,8 +261,6 @@ def run(f):
         # 轮次结束后的操作
         if blockchain.ipport == min(blockchain.committee, key=lambda node: int(node.split(":")[1])):
             node.send_epoch()
-            # if blockchain.role == "leader":
-            # node.send_epoch()
         else:
             print("进入等待轮次结束阶段")
             while True:
@@ -274,107 +268,81 @@ def run(f):
                     p2p.Epoch_overing = False
                     break
                 time.sleep(1)
-        # if min_count == 40:
-        #     break
-
-
-# def cul_score(vi, vecs, num):
-#     vec = [np.sum((x - vi) ** 2) for x in vecs]
-#     vec.sort()
-#     score = sum(vec[:num])
-#     return score
-# def krum(vecs, num, m):
-#     # print(vecs)
-#     # 确保所有 vecs 都是 NumPy 数组
-#     vecs = [x.cpu().numpy() if isinstance(x, torch.Tensor) else x for x in vecs]
-#     temp = (sorted(vecs, key=lambda x: cul_score(x, vecs, num + 1)))[0:m]
-#     return sum(temp) / m
 
 
 def average(vecs, datasize_recv):
     """
     将所有向量按照对应的数据大小进行加权平均。
-    
-    :param vecs: 向量集合，可以是 NumPy 数组或 PyTorch 张量, 长度为 N
-    :param datasize_recv: 每个参与方的数据大小列表，形如 [int, int, ...]，长度为 N
-    :return: 加权平均后的向量
     """
-    # 确保所有 vecs 都是 NumPy 数组
     vecs = [x.cpu().numpy() if isinstance(x, torch.Tensor) else x for x in vecs]
-    
-    # 将 datasize_recv 转为 NumPy 数组，便于后续运算
     datasize_recv1 = np.array(datasize_recv, dtype=np.float32)
-    
-    # 加权求和
     weighted_sum = np.zeros_like(vecs[0], dtype=np.float32)
     for idx, v in enumerate(vecs):
-        # if datasize_recv[idx] != 0:
-            # print(datasize_recv1[idx])
-            # print(v)
-            # print(datasize_recv)
-            # print(vecs)
         weighted_sum += datasize_recv1[idx] * v
-    
-    # 计算总的数据量
     total_size = np.sum(datasize_recv1)
-    
-    # 得到加权平均值
     avg_vec = weighted_sum / total_size
-    
     return avg_vec
 
+
+# ==== 3. 新的 update_quality_scores 函数 (Validation Gain) ====
 def update_quality_scores(
-        grad_recv,          # list[np.ndarray]  本轮各客户端梯度 g_i
-        w_avg,              # np.ndarray        加权全局梯度 w_avg
+        grad_recv,          # list[np.ndarray]  本轮各客户端梯度
         port_recv,          # list[int|str]     端口 / 客户端标识
-        D=0.02,              # 可选整体缩放因子；如不需缩放设 1
-        init_score=2.0):    # 新节点质量分数初始化值
+        client,             # Client 对象 (用于在 Root Dataset 上评估)
+        root_loader,        # DataLoader        代理共识数据集 (Root Dataset)
+        scaling_factor=100.0, # 缩放因子
+        init_score=1.0):    # 新节点质量分数初始化值
     """
-    ➤ 基于“将梯度投影到 w_avg 方向”更新 p2p.quality_score_dict  
-      质量分数增量:  Δq_i = ||g_i|| · cos(g_i, w_avg) / w_distance
-
-        • w_mean  : 所有 g_i 的简单平均梯度  
-        • w_distance = ||w_mean||·cos(w_mean, w_avg) (即 w_mean 在 w_avg 方向上的投影长度)
-
-    参数说明
-    ----------
-    grad_recv   : list[np.ndarray]     每个客户端上报的梯度
-    w_avg       : np.ndarray           当前轮次的全局(加权)平均梯度
-    port_recv   : list[int|str]        与 grad_recv 一一对应的节点标识
-    D           : float                (可选) 将所有 Δq_i 统一乘以 D
-    init_score  : float                新出现端口的初始质量分数
+    ➤ 基于“验证集边际增益 (Validation Marginal Gain)”更新 p2p.quality_score_dict  
+      
+      思路: 
+      1. 计算当前模型在 Root Dataset 上的 Base Loss。
+      2. 对每个参与方：
+         - 临时应用其梯度 g_i 到模型。
+         - 计算新的 Loss。
+         - Marginal Gain = Base Loss - New Loss。
+         - 撤销梯度。
+      3. 质量分数增量 Δq_i = max(0, Gain) * scaling_factor。
     """
 
-    eps = 1e-12   # 数值稳定
-    # ---- 1. 数据准备 ---------------------------------------------------------
-    w_avg = w_avg if isinstance(w_avg, np.ndarray) else w_avg.cpu().numpy()
-    norm_avg = np.linalg.norm(w_avg) + eps           # ||w_avg||
-    u_avg = w_avg / norm_avg                         # w_avg 单位向量
+    if root_loader is None:
+        print("Warning: Root Loader is None, skipping quality update.")
+        return
 
-    # 把所有梯度转成 np.ndarray 并堆叠
-    grads = [g.cpu().numpy() if not isinstance(g, np.ndarray) else g
-             for g in grad_recv]
-    G = np.stack(grads, axis=0)
-
-    # ---- 2. 计算 w_mean 及其在 w_avg 方向上的投影长度 --------------------------
-    w_mean = G.mean(axis=0)                          # 简单平均梯度
-    w_distance = np.dot(w_mean, u_avg)               # 投影长度 (可正可负)
-    if abs(w_distance) < eps:
-        # 若平均梯度与 w_avg 几乎正交，直接退出或设为极小非零值
-        w_distance = eps
-
-    # ---- 3. 计算每个客户端的投影长度，并更新质量分数 ---------------------------
-    for g_i, port in zip(grads, port_recv):
-        # g_i 在 w_avg 方向上的投影长度：||g_i||·cosθ = g_i·u_avg
-        projection_len = np.dot(g_i, u_avg)
-
-        # Δq_i = (projection_len / w_distance) * D
-        delta_q = D * (projection_len / w_distance)
-
+    # 1. 计算基准 Loss (Base Loss)
+    # 注意：此时 client.model 还是上一轮的模型状态（尚未应用本轮任何更新）
+    # 或者如果这是在聚合前，client.model 应该是本地模型？
+    # 在委员会逻辑中，client.model 通常是全局模型副本。
+    base_loss = client.evaluate_on_loader(root_loader)
+    print(f"Base Loss on Proxy Dataset: {base_loss:.6f}")
+    
+    # 2. 遍历每个梯度
+    for g_i, port in zip(grad_recv, port_recv):
+        # 确保 g_i 是 numpy array
+        if isinstance(g_i, torch.Tensor):
+            g_i = g_i.cpu().numpy()
+            
+        # 应用梯度 (client.model += g_i)
+        # 注意：这里的 g_i 是 update (w_new - w_old)，所以直接加
+        client.apply_flat_update(g_i)
+        
+        # 计算新 Loss
+        new_loss = client.evaluate_on_loader(root_loader)
+        
+        # 撤销梯度 (恢复模型状态)
+        client.revert_flat_update(g_i)
+        
+        # 计算增益 (Loss 降低了多少)
+        marginal_gain = base_loss - new_loss
+        
+        # 计算质量分数增量 (只奖励正向贡献)
+        delta_q = max(0, marginal_gain) * scaling_factor
+        
         # 更新 p2p.quality_score_dict
         if port not in p2p.quality_score_dict:
             p2p.quality_score_dict[port] = init_score
+        
         p2p.quality_score_dict[port] += delta_q
+        print(f"Node {port}: BaseLoss={base_loss:.4f}, NewLoss={new_loss:.4f}, Gain={marginal_gain:.6f}, DeltaQ={delta_q:.4f}")
 
-    print("质量分数已更新:", p2p.quality_score_dict)
-
+    print("质量分数已更新 (Validation Gain Method):", p2p.quality_score_dict)

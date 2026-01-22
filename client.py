@@ -19,8 +19,6 @@ import pickle
 import torch.nn.functional as F
 
 
-
-
 class Client():
     def __init__(self, dataset, filename, dir, batch_size, model,port,train_cut=.80, p2p_node=None):
         # initializes dataset
@@ -68,6 +66,9 @@ class Client():
         :param new_size: 需要使用的训练数据大小（样本数）
         """
         new_size = int(new_size*0.8)
+        if new_size <= 0:
+             print("Warning: new_size <= 0, setting to 1")
+             new_size = 1
         # 重新采样训练数据
         subset_indices = np.random.choice(len(self.trainset), new_size, replace=False)
         subset = torch.utils.data.Subset(self.trainset, subset_indices)
@@ -322,22 +323,41 @@ class Client():
             param.data.div_(num_models)
     
         return global_model
+
+    # ==== 新增辅助函数：用于在 Proxy Dataset 上评估梯度 ====
+    def evaluate_on_loader(self, loader):
+        """在指定的 Dataloader 上评估当前模型的 Loss"""
+        total_loss = 0.0
+        total_samples = 0
+        self.model.eval()
+        with torch.no_grad():
+            for i, data in enumerate(loader, 0):
+                inputs = data['image'].float().to(self.device)
+                labels = data['label'].long().to(self.device)
+                out = self.model(inputs)
+                loss = self.criterion(out, labels)
+                total_loss += loss.item() * inputs.size(0)
+                total_samples += inputs.size(0)
+        return total_loss / total_samples
+
+    def apply_flat_update(self, flat_update):
+        """将扁平化的更新向量应用到模型上 (Model += Update)"""
+        layers = self.model.reshape(flat_update)
+        layer_idx = 0
+        with torch.no_grad():
+            for name, param in self.model.named_parameters():
+                if param.requires_grad:
+                    # 注意：local_update = new - old
+                    # 所以要得到 new，应该是 param.data + update
+                    param.data.add_(layers[layer_idx].to(self.device))
+                    layer_idx += 1
     
-    # def send_models(self):
-    #     print("client.py 开始运行send_models")
-    #     self.p2p_node.send_model(self.model)
-    #     length = len(self.p2p_node.get_nodes_list()) - 1
-    #     print("length is ", length)
-    #     while(len(self.models) != length):
-    #         time.sleep(1)
-    #         self.models = self.p2p_node.get_model_list()
-    #     self.models.append(self.model)
-    #     self.model = (self.average_models()).to(self.device)
-    #     self.optimizer = optim.SGD(self.model.parameters(), lr=0.01, momentum=0.9, weight_decay=0.001)  # mnist_cnn
-    #     print(self.optimizer)
-
-
-    
-
-
-
+    def revert_flat_update(self, flat_update):
+        """撤销扁平化的更新向量 (Model -= Update)"""
+        layers = self.model.reshape(flat_update)
+        layer_idx = 0
+        with torch.no_grad():
+            for name, param in self.model.named_parameters():
+                if param.requires_grad:
+                    param.data.sub_(layers[layer_idx].to(self.device))
+                    layer_idx += 1

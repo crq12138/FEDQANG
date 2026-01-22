@@ -2,6 +2,8 @@
 /cifar-10-batches-py/
 /mnist/
 /MNIST/
+/medmnist/
+/log/terminal/
 # --- 强烈建议忽略的 Python 缓存文件 (截图中有显示) ---
 __pycache__/
 *.pyc

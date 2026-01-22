@@ -324,6 +324,43 @@ class Client():
         return global_model
 
 
+    # ==== 新增辅助函数：用于在 Proxy Dataset 上评估梯度 ====
+    def evaluate_on_loader(self, loader):
+        """在指定的 Dataloader 上评估当前模型的 Loss"""
+        total_loss = 0.0
+        total_samples = 0
+        self.model.eval()
+        with torch.no_grad():
+            for i, data in enumerate(loader, 0):
+                inputs = data['image'].float().to(self.device)
+                labels = data['label'].long().to(self.device)
+                out = self.model(inputs)
+                loss = self.criterion(out, labels)
+                total_loss += loss.item() * inputs.size(0)
+                total_samples += inputs.size(0)
+        return total_loss / total_samples
+
+    def apply_flat_update(self, flat_update):
+        """将扁平化的更新向量应用到模型上 (Model += Update)"""
+        layers = self.model.reshape(flat_update)
+        layer_idx = 0
+        with torch.no_grad():
+            for name, param in self.model.named_parameters():
+                if param.requires_grad:
+                    # 注意：local_update = new - old
+                    # 所以要得到 new，应该是 param.data + update
+                    param.data.add_(layers[layer_idx].to(self.device))
+                    layer_idx += 1
+    
+    def revert_flat_update(self, flat_update):
+        """撤销扁平化的更新向量 (Model -= Update)"""
+        layers = self.model.reshape(flat_update)
+        layer_idx = 0
+        with torch.no_grad():
+            for name, param in self.model.named_parameters():
+                if param.requires_grad:
+                    param.data.sub_(layers[layer_idx].to(self.device))
+                    layer_idx += 1
     
 
 

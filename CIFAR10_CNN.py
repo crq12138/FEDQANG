@@ -174,8 +174,6 @@ def run(f):
                     grad = client.getGrad()
             else:
                 grad = client.getGrad()
-                log_loss4.write(f"{iter} {p2p.transfer_dict[p2p.PORT]}\n")
-                log_loss4.flush()
 
             if config.use_noise:
                 grad = gaussian_noise(grad)
@@ -242,7 +240,7 @@ def run(f):
         log_loss2.write(f"{iter} {new_error}\n")
         log_loss3.write(f"{iter} {p2p.quality_score_dict[p2p.PORT]}\n")
         log_loss4.write(f"{iter} {p2p.transfer_dict[p2p.PORT]}\n")
-        
+        # log_loss3.write(f"{iter} {0.0}\n")  # 这里的时间记录需要进一步完善
         log_loss1.flush()
         log_loss2.flush()
         log_loss3.flush()

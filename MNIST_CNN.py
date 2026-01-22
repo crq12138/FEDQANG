@@ -12,7 +12,7 @@ import datasets
 import bc_enum
 import p2p
 from mnist_cnn_model import MNISTCNNModel
-from client import Client
+from client_MNIST import Client
 from transfer import incentive
 from MNIST_CNN_path import path
 

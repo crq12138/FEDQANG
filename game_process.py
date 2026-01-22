@@ -13,13 +13,14 @@ import grpc_pb2
 import grpc_pb2_grpc
 import bc_enum
 import p2p
-import client
+import client_MNIST
 from core import blockchain_instance
 import math
 import numpy as np
 from scipy.optimize import minimize_scalar
 from MNIST_CNN_path import path as mnist_path
 from CIFAR10_CNN_path import path as cifar10_path
+from MedMNIST_CNN_path import path as medmnist_path
 
 
 max_message_length = 100 * 1024 * 1024  # 设置为 100 MB，可根据需要调整
@@ -38,7 +39,7 @@ decisions = dict()  # decisions = {0: {"50055": 1000, "50056": 400, ...}, 1: {..
 convergence = dict()
 data_contribution = dict()
 port = str(p2p.PORT)
-filename = mnist_path + "datasize/traindata_" + port + ".txt"
+filename = medmnist_path + "datasize/traindata_" + port + ".txt"
 log_data = open(filename, "w")
 data_loop = 0
 def decentralized_game(client, Loss, iter):
@@ -174,7 +175,7 @@ def solve_optimal_data_contribution(
 
     # 若未提供 p_n_dict, 则为所有参与方设定一个默认 p_n=8.0
     if p_n_dict is None:
-        p_n_dict = {pid: 12 for pid in all_data_contributions.keys()}
+        p_n_dict = {pid: 50 for pid in all_data_contributions.keys()}
 
     # 若未提供 max_data_size_dict, 则为所有参与方设定一个默认最大贡献量5000
     # if max_data_size_dict is None:

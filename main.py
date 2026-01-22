@@ -4,18 +4,10 @@ import sys
 # print(sys.path)
 # import blockchain
 # import threading
-# import MNIST_CNN_local
-# import MNIST_training_DP
-# import MNIST_training_pure
 import MNIST_CNN
 import CIFAR10_CNN
-# import MNIST_Softmax
 import p2p
-# import decen_training
-# from .blockchain import Blockchain
 
-# _first_block = block.Block().first_block()
-# print(_first_block)
 
 if __name__ == '__main__':
     # p2p-grpc initializaiton

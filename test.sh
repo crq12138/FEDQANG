@@ -11,9 +11,13 @@ done
 # python-is-python-3
 python -c 'import sys;assert sys.version_info.major==3'
 
+log_dir="log/terminal"
+mkdir -p "$log_dir"
+
 for port in "${ports[@]}"; do
     bind_address="127.0.0.1"
-    screen -Sdm  "exp-port-$port" -L python main.py "$bind_address:$port" "$port"
+    screen -Sdm "exp-port-$port" -L -Logfile "$log_dir/port_${port}.log" \
+        python main.py "$bind_address:$port" "$port"
 done
 
 sleep 0.5s

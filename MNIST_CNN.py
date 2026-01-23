@@ -114,7 +114,7 @@ def run(f):
     
     # ==== 1. 加载 Proxy Consensus Dataset (Root Dataset) ====
     # 使用 ./mnist 作为 root_dir
-    root_loader = datasets.get_proxy_dataloader("mnist", "./mnist", batch_size=config.batch_size, sample_size=200)
+    root_loader = datasets.get_proxy_dataloader("mnist", "./mnist", batch_size=config.batch_size, sample_size=500)
     
     client.TestLoss()
     new_error = client.getTestErr()
@@ -258,55 +258,66 @@ def average(vecs, datasize_recv):
     return avg_vec
 
 
-# ==== 3. 新的 update_quality_scores 函数 (基于 Validation Marginal Gain) ====
+# ==== 3. 新的 update_quality_scores 函数 (Accuracy-based Relative Scaling) ====
 def update_quality_scores(
-        grad_recv,          # list[np.ndarray]  本轮各客户端梯度 (updates)
+        grad_recv,          # list[np.ndarray]  本轮各客户端梯度
         port_recv,          # list[int|str]     端口 / 客户端标识
-        client,             # Client 对象 (用于访问 model 和 evaluate 方法)
+        client,             # Client 对象
         root_loader,        # DataLoader        代理共识数据集
-        scaling_factor=100.0, # 缩放因子
+        max_score_change=0.2, # 每一轮最大的分数变化量 (由您设定为 0.2)
         init_score=1.0):    
-    """
-    基于 'Proxy Consensus Dataset' (Root Dataset) 计算 Validation Marginal Gain。
-    
-    Q_i += max(0, BaseLoss - Loss_with_Update_i) * Scaling
-    """
     
     if root_loader is None:
         print("Warning: Root Loader is None, skipping quality update.")
         return
 
-    # 1. 计算基准 Loss (Base Loss) - 当前全局模型在 Root Dataset 上的 Loss
-    base_loss = client.evaluate_on_loader(root_loader)
-    print(f"Base Loss on Proxy Dataset: {base_loss:.6f}")
+    # 1. 计算基准精度 (Base Accuracy)
+    base_acc = client.evaluate_accuracy_on_loader(root_loader)
+    print(f"Base Accuracy on Proxy Dataset: {base_acc:.4f}")
     
-    # 2. 遍历每个梯度，应用 -> 评估 -> 撤销
+    acc_gains = []
+
+    # 2. 遍历每个梯度，计算精度增益 (Marginal Accuracy Gain)
     for g_i, port in zip(grad_recv, port_recv):
-        # 确保 g_i 是 numpy array
+        # 确保格式为 numpy
         if isinstance(g_i, torch.Tensor):
             g_i = g_i.cpu().numpy()
             
-        # 应用梯度 (注意: local update 通常是 w_new - w_old, 所以 w_new = w_old + update)
-        # client.apply_flat_update 实现了 model += update
+        # A. 应用梯度 (模拟更新)
         client.apply_flat_update(g_i)
         
-        # 计算应用梯度后的 Loss
-        new_loss = client.evaluate_on_loader(root_loader)
+        # B. 计算新精度
+        new_acc = client.evaluate_accuracy_on_loader(root_loader)
         
-        # 撤销梯度 (恢复模型)
+        # C. 撤销梯度 (恢复模型)
         client.revert_flat_update(g_i)
         
-        # 计算边际增益 (Marginal Gain)
-        marginal_gain = base_loss - new_loss
+        # D. 计算增益
+        marginal_gain = new_acc - base_acc
+        acc_gains.append(marginal_gain)
+
+# 3. 找到本轮最大的正向增益 (Max Positive Gain)
+    # 过滤掉负值，只看正值。如果全是负值，则 max_gain = 0
+    max_gain = max([g for g in acc_gains if g > 0]) if any(g > 0 for g in acc_gains) else 0.0
+    
+    # ...
+
+    for gain, port in zip(acc_gains, port_recv):
+        # 核心逻辑：只奖励，不惩罚
+        if gain > 0 and max_gain > 1e-6:
+             # 相对缩放：表现最好的拿满 0.2，其他的按比例拿
+             delta_q = (gain / max_gain) * max_score_change
+        else:
+             # 负增益或微小增益：不扣分，但也不加分
+             # 这对理性节点已经是惩罚了（因为他们浪费了算力却没拿到分）
+             delta_q = 0.0 
         
-        # 计算质量分数增量 (只奖励正向改进)
-        delta_q = max(0, marginal_gain) * scaling_factor
-        
-        # 更新质量分数
+        # 更新分数
         if port not in p2p.quality_score_dict:
             p2p.quality_score_dict[port] = init_score
-        
+            
         p2p.quality_score_dict[port] += delta_q
-        print(f"Node {port}: BaseLoss={base_loss:.4f}, NewLoss={new_loss:.4f}, Gain={marginal_gain:.6f}, DeltaQ={delta_q:.4f}")
+        
+        print(f"Node {port}: BaseAcc={base_acc:.4f}, NewAcc={base_acc+gain:.4f}, Gain={gain:.6f}, DeltaQ={delta_q:.4f}")
 
-    print("质量分数已更新 (Validation Gain Method):", p2p.quality_score_dict)
+    print("质量分数已更新 (Accuracy-based Relative Scaling):", p2p.quality_score_dict)

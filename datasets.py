@@ -5,6 +5,7 @@ from cifar_dataset import CIFARDataset
 from medmnist_dataset import MedMNISTDataset 
 import torch
 import numpy as np
+from torchvision import transforms # 移到顶层导入
 
 def get_dataset(dataset):
     if dataset == "mnist":
@@ -46,7 +47,7 @@ def get_num_classes(dataset):
     else: 
         print("Error: dataset " + dataset + " not defined")
 
-# 修改 get_proxy_dataloader 以支持 medmnist
+# 修改 get_proxy_dataloader 以支持 medmnist 并修复单通道/多通道 normalize 问题
 def get_proxy_dataloader(dataset_name, root_dir, batch_size=32, sample_size=200):
     Dataset = get_dataset(dataset_name)
     
@@ -57,9 +58,20 @@ def get_proxy_dataloader(dataset_name, root_dir, batch_size=32, sample_size=200)
          test_filename = "pathmnist_test"
 
     try:
-        from torchvision import transforms
-        # PathMNIST 是 RGB，均值方差通常设为 0.5
-        transform = transforms.Compose([transforms.ToTensor(), transforms.Normalize(mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5])])
+        # ==== 核心修复：根据数据集类型选择正确的 Normalize 参数 ====
+        if dataset_name == "mnist":
+            # MNIST 是单通道 (Grayscale)
+            transform = transforms.Compose([
+                transforms.ToTensor(), 
+                transforms.Normalize(mean=[0.5], std=[0.5])
+            ])
+        else:
+            # CIFAR / MedMNIST 是三通道 (RGB)
+            transform = transforms.Compose([
+                transforms.ToTensor(), 
+                transforms.Normalize(mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5])
+            ])
+        # ========================================================
         
         full_test_set = Dataset(test_filename, root_dir, is_train=False, transform=transform)
 

@@ -324,20 +324,28 @@ class Client():
         return global_model
 
     # ==== 新增辅助函数：用于在 Proxy Dataset 上评估梯度 ====
-    def evaluate_on_loader(self, loader):
-        """在指定的 Dataloader 上评估当前模型的 Loss"""
-        total_loss = 0.0
-        total_samples = 0
+    def evaluate_accuracy_on_loader(self, loader):
+        """
+        在指定的 Dataloader 上评估当前模型的 Accuracy。
+        返回: accuracy (0.0 ~ 1.0)
+        """
+        correct = 0
+        total = 0
         self.model.eval()
         with torch.no_grad():
             for i, data in enumerate(loader, 0):
                 inputs = data['image'].float().to(self.device)
                 labels = data['label'].long().to(self.device)
-                out = self.model(inputs)
-                loss = self.criterion(out, labels)
-                total_loss += loss.item() * inputs.size(0)
-                total_samples += inputs.size(0)
-        return total_loss / total_samples
+                outputs = self.model(inputs)
+                
+                # 获取预测类别
+                _, predicted = torch.max(outputs.data, 1)
+                
+                total += labels.size(0)
+                correct += (predicted == labels).sum().item()
+        
+        if total == 0: return 0.0
+        return correct / total
 
     def apply_flat_update(self, flat_update):
         """将扁平化的更新向量应用到模型上 (Model += Update)"""

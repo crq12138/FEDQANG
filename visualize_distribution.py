@@ -23,6 +23,8 @@ def plot_distribution(data_dir, file_prefix, title, num_classes=10, save_path=No
     # 1. 寻找匹配的文件
     search_pattern = os.path.join(data_dir, f"{file_prefix}*.npy")
     files = glob.glob(search_pattern)
+    pattern = re.compile(rf"^{file_prefix}\d+\.npy$")
+    files = [f for f in files if pattern.match(os.path.basename(f))]
     files.sort(key=natural_sort_key) # 排序确保 Client 0, 1, 2... 顺序正确
 
     # 过滤掉测试集文件 (通常含有 'test' 字符串)
@@ -111,14 +113,14 @@ if __name__ == "__main__":
     
     # 示例 1: 查看 MNIST 分布
     # 请确保您已经运行了 mnist_parser.py 并在 ./mnist_data 下生成了数据
-    # if os.path.exists("./mnist"):
-    #     plot_distribution(
-    #         data_dir="./mnist", 
-    #         file_prefix="mnist_",  # 或者是 "mnist_unif_" 取决于您 parser 的设置
-    #         title="MNIST Client Data Distribution",
-    #         num_classes=10,
-    #         save_path="mnist_dist.png"
-    #     )
+    if os.path.exists("./mnist"):
+        plot_distribution(
+            data_dir="./mnist", 
+            file_prefix="mnist_unif",  # 或者是 "mnist_unif_" 取决于您 parser 的设置
+            title="MNIST Client Data Distribution",
+            num_classes=10,
+            save_path="mnist_dist.png"
+        )
 
     # # 示例 2: 查看 CIFAR-10 分布
     # if os.path.exists("./cifar-10-batches-py/cifar10"):
@@ -130,12 +132,12 @@ if __name__ == "__main__":
     #         save_path="cifar10_dist.png"
     #     )
         
-    # 示例 3: 查看 MedMNIST (PathMNIST) 分布
-    if os.path.exists("./medmnist"):
-        plot_distribution(
-            data_dir="./medmnist", 
-            file_prefix="pathmnist_", 
-            title="PathMNIST (MedMNIST) Distribution", 
-            num_classes=9, # PathMNIST 是9类
-            save_path="medmnist_dist.png"
-        )
+    # # 示例 3: 查看 MedMNIST (PathMNIST) 分布
+    # if os.path.exists("./medmnist"):
+    #     plot_distribution(
+    #         data_dir="./medmnist", 
+    #         file_prefix="pathmnist_", 
+    #         title="PathMNIST (MedMNIST) Distribution", 
+    #         num_classes=9, # PathMNIST 是9类
+    #         save_path="medmnist_dist.png"
+    #     )

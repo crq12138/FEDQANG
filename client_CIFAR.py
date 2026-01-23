@@ -98,7 +98,7 @@ class Client():
 
             # 反向传播
             loss.backward()
-            nn.utils.clip_grad_norm_(self.model.parameters(), 100)
+            torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=10) 
             # self.loss = loss.item()
             # for name, param in self.model.named_parameters():
             #     if param.requires_grad:

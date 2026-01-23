@@ -99,11 +99,9 @@ class Client():
 
             # 反向传播
             loss.backward()
-            nn.utils.clip_grad_norm_(self.model.parameters(), 100)
-            # self.loss = loss.item()
-            # for name, param in self.model.named_parameters():
-            #     if param.requires_grad:
-            #         print(param.grad)
+            # 限制梯度的最大范数为 10，防止某个 batch 数据异常导致梯度爆炸
+            torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=10) 
+            # ===============================
             # 更新参数
             self.optimizer.step()
 
@@ -115,8 +113,14 @@ class Client():
         for name in initial_params.keys():
             update = (updated_params[name] - initial_params[name]).numpy().flatten()
             local_update = np.concatenate((local_update, update), axis=None)
-        # layers = self.model.reshape(local_update)
-        # layers = [layer.to(self.device) for layer in layers]
+        # 计算整个更新向量的模长
+        update_norm = np.linalg.norm(local_update)
+        max_update_norm = 2.0  # 设定一个保守的阈值 (例如 2.0 或 5.0)
+        
+        if update_norm > max_update_norm:
+            scale = max_update_norm / (update_norm + 1e-6)
+            local_update = local_update * scale
+            print(f"Warning: Local update clipped! Norm {update_norm:.4f} -> {max_update_norm}")
         # 5. 恢复模型到训练前状态
         with torch.no_grad():
             for name, param in self.model.named_parameters():

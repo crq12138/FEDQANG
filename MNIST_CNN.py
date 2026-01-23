@@ -23,7 +23,7 @@ sigama = 1e-5
 @dataclass(frozen=True)
 class ExperimentConfig:
     iter_time: int = 50
-    batch_size: int = 128
+    batch_size: int = 32
     train_cut: float = 1.0
     seed: int = 42
     wait_for_network_s: float = 5.0
@@ -37,7 +37,7 @@ class ExperimentConfig:
 
     # Dataset selection rule
     use_mnist_unif_threshold: int = 50052
-    mnist_unif_prefix: str = "mnist_unif"
+    mnist_unif_prefix: str = "mnist_noniid_0.1_client_"
     mnist_prefix: str = "mnist"
 
 
@@ -191,14 +191,14 @@ def run(f):
             p2p.transfer_dict = incentive(cost_list, port_recv, krum_grad1, grad_recv)
             for item in blockchain.committee:
                 p2p.transfer_dict[item.split(':')[1]] = 0.0
-            print(grad_recv)
+            # print(grad_recv)
 
             print(p2p.transfer_dict)
             print(datasize_recv)
             
             # ==== 2. 调用新的质量评估函数 ====
             # 传入 client (包含 model) 和 root_loader
-            update_quality_scores(grad_recv, port_recv, client, root_loader)
+            update_quality_scores(grad_recv, port_recv, client, root_loader, blockchain)
             
             print('grad_receive11111========',grad_recv)
             krum_grad_bytes = pickle.dumps(krum_grad1)
@@ -264,6 +264,7 @@ def update_quality_scores(
         port_recv,          # list[int|str]     端口 / 客户端标识
         client,             # Client 对象
         root_loader,        # DataLoader        代理共识数据集
+        blockchain,
         max_score_change=0.2, # 每一轮最大的分数变化量 (由您设定为 0.2)
         init_score=1.0):    
     
@@ -300,7 +301,8 @@ def update_quality_scores(
     # 过滤掉负值，只看正值。如果全是负值，则 max_gain = 0
     max_gain = max([g for g in acc_gains if g > 0]) if any(g > 0 for g in acc_gains) else 0.0
     
-    # ...
+    total_delta = 0.0
+    worker_count = 0
 
     for gain, port in zip(acc_gains, port_recv):
         # 核心逻辑：只奖励，不惩罚
@@ -317,7 +319,15 @@ def update_quality_scores(
             p2p.quality_score_dict[port] = init_score
             
         p2p.quality_score_dict[port] += delta_q
+        total_delta += delta_q
+        worker_count += 1
         
         print(f"Node {port}: BaseAcc={base_acc:.4f}, NewAcc={base_acc+gain:.4f}, Gain={gain:.6f}, DeltaQ={delta_q:.4f}")
 
-    print("质量分数已更新 (Accuracy-based Relative Scaling):", p2p.quality_score_dict)
+    avg_delta = total_delta / worker_count if worker_count > 0 else 0.0
+
+    for member_str in blockchain.committee:
+        port = member_str.split(':')[1]
+        p2p.quality_score_dict[port] += avg_delta
+
+    print("质量分数已更新 (含委员会补偿):", p2p.quality_score_dict)

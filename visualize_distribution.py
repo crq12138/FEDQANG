@@ -116,7 +116,7 @@ if __name__ == "__main__":
     if os.path.exists("./mnist"):
         plot_distribution(
             data_dir="./mnist", 
-            file_prefix="mnist_unif",  # 或者是 "mnist_unif_" 取决于您 parser 的设置
+            file_prefix="mnist_noniid_0.1_client_",  # 或者是 "mnist_unif_" 取决于您 parser 的设置
             title="MNIST Client Data Distribution",
             num_classes=10,
             save_path="mnist_dist.png"

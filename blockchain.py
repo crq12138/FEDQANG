@@ -7,7 +7,7 @@ import grpc_pb2
 import grpc_pb2_grpc
 import time
 # import re
-import json
+import random
 import hashlib
 # import threading
 import p2p
@@ -141,19 +141,22 @@ class Blockchain:
             self.hash_ring.add_node(node_address, weight)
 
     def update_hash_ring(self):
-        nodes = set(p2p.Node.get_nodes_list())
-        # print(nodes)
-        sorted_nodes = sorted(nodes)
-        print(sorted_nodes)
-        # 假设我们有一个全局的客户端列表，可以遍历并添加到哈希环
-        for node_address in sorted_nodes:
-            
-            quality = p2p.quality_score_dict[node_address.split(":", 1)[1].strip()]
-            # weight = 70
-            # print(weight)
-            # time.sleep(3000)
-            weight = np.exp(3.0 - quality)
-            self.hash_ring.add_node(node_address, weight)
+        # 基于质量分数的委员会选举算法（已注释，保留原实现）
+        # # print(self.lastBlock)
+        # if not self.lastBlock:
+        #     seed = "genesis"
+        # else:
+        #     seed = hash_block(self.lastBlock)
+        # # print("seed is ", seed)
+        # self.committee = self.hash_ring.get_nodes_for_committee(seed, self.committee_size)
+        # print("委员会成员选举完成:", self.committee)
+
+        # 全随机委员会选举
+        nodes = list(p2p.Node.get_nodes_list())
+        if len(nodes) <= self.committee_size:
+            self.committee = set(nodes)
+        else:
+            self.committee = set(random.sample(nodes, self.committee_size))
     
     # def get_client_by_address(self, address):
     #     # 根据地址获取对应的 Client 实例

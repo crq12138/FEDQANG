@@ -76,8 +76,8 @@ def dirichlet_split_noniid(alpha=0.5, client_number=5):
         Xtrain[i, :] = np.asarray(images[i])
 
     # 标准化每一列
-    print("Standardize columns")
-    Xtrain = Xtrain / 100.0
+    # print("Standardize columns")
+    # Xtrain = Xtrain / 100.0
 
     # 使用 Dirichlet 分布进行数据划分
     client_idcs = dirichlet_split_noniid_split(ytrain, alpha=alpha, client_number=client_number)
@@ -153,20 +153,20 @@ def slice_uniform():
         Xtest[q, :] = np.asarray(images_test[q])
 
     # standardize each column
-    print("Standardize columns")
-    Xtrain = Xtrain / 100.0
+    # print("Standardize columns")
+    # Xtrain = Xtrain / 100.0
     # Xtrain, _, _ = standardize_cols(Xtrain)
     # Xtest, _, _ = standardize_cols(Xtest)
 
-    for k in range(7):
+    for k in range(10):
 
-        randIdx = np.random.permutation(n)[0:7000]
+        randIdx = np.random.permutation(n)[0:5000]
 
         class_slice = Xtrain[randIdx]
         data_slice = np.hstack((class_slice, ytrain[randIdx][:, None]))
 
         print("slice " + str(k) + " is shape " + str(data_slice.shape))
-        np.save("mnist_unif_7000_" + str(k), data_slice)
+        np.save("mnist_unif" + str(k), data_slice)
 
     # pdb.set_trace()
 
@@ -198,8 +198,8 @@ def slice_for_tm():
         Xtest[q, :] = np.asarray(images_test[q])
 
     # standardize each column
-    print("Standardize columns")
-    Xtrain = Xtrain / 100.0
+    # print("Standardize columns")
+    # Xtrain = Xtrain / 100.0
 
     for k in range(10):
         idx = np.where(ytrain == k)[0]
@@ -240,6 +240,6 @@ def standardize_cols(X, mu=None, sigma=None):
 
 if __name__ == "__main__":
 
-    # slice_uniform()
-    slice_for_tm()
+    slice_uniform()
+    # slice_for_tm()
     # dirichlet_split_noniid(alpha=0.1, client_number=10)

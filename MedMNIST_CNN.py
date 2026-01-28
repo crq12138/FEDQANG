@@ -25,7 +25,7 @@ if not os.path.exists(path):
 @dataclass(frozen=True)
 class ExperimentConfig:
     iter_time: int = 100
-    batch_size: int = 64
+    batch_size: int = 32
     train_cut: float = 1.0
     seed: int = 42
     wait_for_network_s: float = 5.0
@@ -35,13 +35,11 @@ class ExperimentConfig:
     use_noise: bool = False
     zero_grad_when_small: bool = True
     
-    # Dataset config
-    dataset_name: str = "medmnist"
-    # 根据 parser 生成的文件名格式
-    # 假设 parser 生成 pathmnist_0.npy ... pathmnist_9.npy
-    # 我们根据端口号简单映射
-    medmnist_prefix: str = "pathmnist_" 
-    dataset_dir: str = "./medmnist"
+    # Dataset selection rule
+    dataset_dir: str = "medmnist"
+    use_medmnist_unif_threshold: int = 50052
+    medmnist_unif_prefix: str = "pathmnist_exp1_client_"
+    medmnist_prefix: str = "pathmnist_exp1_client_"
 
 def set_seed(seed: int):
     random.seed(seed)
@@ -63,7 +61,7 @@ def calculate_model_size(model):
 def get_dataset_filename(port, config: ExperimentConfig):
     # 简单映射：端口 50051 -> client 0, 50052 -> client 1...
     # 您可以根据实际 ipport.txt 调整逻辑
-    client_id = (int(port) - 50051) % 10
+    client_id = (int(port) - 50051)//2
     return f"{config.medmnist_prefix}{client_id}"
 
 def log_paths(node_port):
@@ -113,7 +111,7 @@ def run(f):
     )
     
     # 加载 Proxy Dataset
-    root_loader = datasets.get_proxy_dataloader("medmnist", config.dataset_dir, batch_size=config.batch_size, sample_size=200)
+    root_loader = datasets.get_proxy_dataloader("medmnist", config.dataset_dir, batch_size=config.batch_size, sample_size=500)
 
     client.TestLoss()
     new_error = client.getTestErr()

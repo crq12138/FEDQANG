@@ -23,22 +23,22 @@ sigama = 1e-5
 @dataclass(frozen=True)
 class ExperimentConfig:
     iter_time: int = 100
-    batch_size: int = 128
+    batch_size: int = 32
     train_cut: float = 1.0
     seed: int = 42
     wait_for_network_s: float = 5.0
     quality_score_init: float = 1.0
 
     # Experiment toggles
-    use_game_process: bool = True
+    use_game_process: bool = False
     send_initial_model: bool = False
     use_noise: bool = False
     zero_grad_when_small: bool = True
 
     # Dataset selection rule
     use_cifar_unif_threshold: int = 50052
-    cifar_unif_prefix: str = "cifar10_unif_10000_"
-    cifar_prefix: str = "cifar10_"
+    cifar_unif_prefix: str = "cifar10_exp1_client_"
+    cifar_prefix: str = "cifar10_exp1_client_"
     dataset_dir: str = "cifar-10-batches-py/cifar10"
 
 

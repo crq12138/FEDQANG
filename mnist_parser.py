@@ -238,8 +238,58 @@ def standardize_cols(X, mu=None, sigma=None):
     return (X - mu) / sigma, mu, sigma
 
 
+def generate_exp2_data():
+    """
+    实验二数据生成：偏科天才 vs 冗余混子
+    """
+    import numpy as np
+    from mnist import MNIST
+
+    mndata = MNIST('./MNIST/raw/')
+    images, labels = mndata.load_training()
+    X = np.array(images)
+    y = np.array(labels)
+
+    # 分类数据容器
+    class_data = {i: [] for i in range(10)}
+    for img, lbl in zip(X, y):
+        class_data[lbl].append(np.hstack((img, [lbl]))) # 图片+标签
+
+    # 转为 array
+    for i in range(10):
+        class_data[i] = np.array(class_data[i])
+
+    # 1. 生成 8 个普通节点 (Client 0-7): 拥有 0-7 类
+    # 将 0-7 类的数据混合并均分给 8 个人
+    common_data = np.vstack([class_data[i] for i in range(8)])
+    np.random.shuffle(common_data)
+    chunks = np.array_split(common_data, 8)
+    
+    for i in range(8):
+        np.save(f"mnist_exp2_client_{i}.npy", chunks[i])
+        print(f"Client {i} (Common 0-7) saved.")
+
+    # 2. 生成 1 个偏科天才 (Client 8): 拥有 8-9 类
+    genius_data = np.vstack([class_data[8], class_data[9]])
+    np.random.shuffle(genius_data)
+    # 为了公平，可以控制数据量和普通节点差不多，或者少一点也无所谓
+    # 假设取 5000 个样本
+    genius_data = genius_data[:5000]
+    np.save(f"mnist_exp2_client_8.npy", genius_data)
+    print(f"Client 8 (Genius 8-9) saved.")
+
+    # 3. 生成 1 个冗余混子 (Client 9): 拥有 0-1 类 (重复知识)
+    redundant_data = np.vstack([class_data[0], class_data[1]])
+    np.random.shuffle(redundant_data)
+    # 取新的数据，模拟它确实有数据，但是是重复的知识
+    # 这里直接重用数据也没关系，因为我们看的是泛化贡献
+    redundant_data = redundant_data[:5000]
+    np.save(f"mnist_exp2_client_9.npy", redundant_data)
+    print(f"Client 9 (Redundant 0-1) saved.")
+
 if __name__ == "__main__":
 
-    slice_uniform()
+    # slice_uniform()
     # slice_for_tm()
     # dirichlet_split_noniid(alpha=0.1, client_number=10)
+    generate_exp2_data()

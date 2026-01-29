@@ -38,7 +38,16 @@ class MNISTDataset(Dataset):
         return len(self.y)
 
     def __getitem__(self, idx):
-        sample = Image.fromarray(np.reshape(self.X[idx], (28, 28)))
+        # ==== 修改开始 ====
+        # 1. 取出数据并 reshape
+        img_data = np.reshape(self.X[idx], (28, 28))
+        
+        # 2. 关键修复：强制转换为 uint8 类型 (PIL 需要 0-255 的 uint8)
+        img_data = img_data.astype(np.uint8)
+        
+        # 3. 再转为 Image 对象
+        sample = Image.fromarray(img_data)
+        # ==== 修改结束 ====
 
         if self.transform:
             sample = self.transform(sample)

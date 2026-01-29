@@ -197,8 +197,10 @@ def generate_medmnist_exp2_data(root_dir='./medmnist'):
     # 均分给 8 个客户端
     chunks = np.array_split(common_pool, 8)
     for i in range(8):
-        np.save(os.path.join(root_dir, f"pathmnist_exp2_client_{i}.npy"), chunks[i])
-        print(f"Client {i} (Common 0-6) saved, shape {chunks[i].shape}")
+        data = chunks[i]
+        data = data[:5000]
+        np.save(os.path.join(root_dir, f"pathmnist_exp2_client_{i}.npy"), data)
+        print(f"Client {i} (Common 0-6) saved, shape {data.shape}")
 
     # 2. 生成 1 个天才节点 (Client 8): 独占 7-8 类
     genius_classes = [7, 8]
@@ -228,7 +230,7 @@ def generate_medmnist_exp2_data(root_dir='./medmnist'):
 if __name__ == "__main__":
     # generate_medmnist_data()
     # --- 1. 运行实验一数据生成 ---
-    generate_medmnist_exp1_data()
+    # generate_medmnist_exp1_data()
     
     # --- 2. 运行实验二数据生成 ---
-    # generate_medmnist_exp2_data()
+    generate_medmnist_exp2_data()

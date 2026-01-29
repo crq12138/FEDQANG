@@ -247,8 +247,8 @@ def generate_exp2_data():
 
     mndata = MNIST('./MNIST/raw/')
     images, labels = mndata.load_training()
-    X = np.array(images)
-    y = np.array(labels)
+    X = np.array(images, dtype=np.uint8) 
+    y = np.array(labels, dtype=np.uint8)
 
     # 分类数据容器
     class_data = {i: [] for i in range(10)}
@@ -261,31 +261,32 @@ def generate_exp2_data():
 
     # 1. 生成 8 个普通节点 (Client 0-7): 拥有 0-7 类
     # 将 0-7 类的数据混合并均分给 8 个人
-    common_data = np.vstack([class_data[i] for i in range(8)])
+    common_data = np.vstack([class_data[i] for i in range(7)])
     np.random.shuffle(common_data)
+    common_data = common_data[:16000]
     chunks = np.array_split(common_data, 8)
     
     for i in range(8):
-        np.save(f"mnist_exp2_client_{i}.npy", chunks[i])
-        print(f"Client {i} (Common 0-7) saved.")
+        np.save(f"mnist_exp2_client_{i+2}.npy", chunks[i])
+        print(f"Client {i+2} (Common 0-7) saved.")
 
     # 2. 生成 1 个偏科天才 (Client 8): 拥有 8-9 类
-    genius_data = np.vstack([class_data[8], class_data[9]])
+    genius_data = np.vstack([class_data[7], class_data[8], class_data[9]])
     np.random.shuffle(genius_data)
     # 为了公平，可以控制数据量和普通节点差不多，或者少一点也无所谓
     # 假设取 5000 个样本
-    genius_data = genius_data[:5000]
-    np.save(f"mnist_exp2_client_8.npy", genius_data)
-    print(f"Client 8 (Genius 8-9) saved.")
+    genius_data = genius_data[:2000]
+    np.save(f"mnist_exp2_client_0.npy", genius_data)
+    print(f"Client 0 (Genius 8-9) saved.")
 
     # 3. 生成 1 个冗余混子 (Client 9): 拥有 0-1 类 (重复知识)
-    redundant_data = np.vstack([class_data[0], class_data[1]])
+    redundant_data = np.vstack([class_data[1], class_data[2], class_data[3]])
     np.random.shuffle(redundant_data)
     # 取新的数据，模拟它确实有数据，但是是重复的知识
     # 这里直接重用数据也没关系，因为我们看的是泛化贡献
-    redundant_data = redundant_data[:5000]
-    np.save(f"mnist_exp2_client_9.npy", redundant_data)
-    print(f"Client 9 (Redundant 0-1) saved.")
+    redundant_data = redundant_data[:2000]
+    np.save(f"mnist_exp2_client_1.npy", redundant_data)
+    print(f"Client 1 (Redundant 0-1) saved.")
 
 if __name__ == "__main__":
 

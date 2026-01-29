@@ -8,7 +8,7 @@ import torch.optim as optim
 import torch.utils.data
 from torch.autograd import Variable
 import torchvision.transforms as transforms
-from sklearn.metrics import accuracy_score
+from sklearn.metrics import accuracy_score, f1_score
 import numpy as np
 # import pdb
 import datasets
@@ -39,18 +39,12 @@ class Client():
         self.testloader = torch.utils.data.DataLoader(self.testset, batch_size=self.batch_size, shuffle=False)
         self.models = []
         self.datasize = len(self.trainset)
-        # self.attackset = Dataset("mnist_digit1", "../mnist_data/" + dataset, is_train=False, transform=transform)
-        # self.attackloader = torch.utils.data.DataLoader(self.attackset, batch_size=len(self.testset), shuffle=False)
-        # self.model = model
 
         ### Tunables ###
         # self.criterion = nn.MultiLabelMarginLoss()s
         self.criterion = nn.CrossEntropyLoss()
-        self.optimizer = optim.SGD(self.model.parameters(), lr=0.1, momentum=0.9, weight_decay=0.0005)  # mnist_cnn
+        self.optimizer = optim.SGD(self.model.parameters(), lr=0.01, momentum=0.9, weight_decay=0.0005)  # mnist_cnn
         self.scheduler = StepLR(self.optimizer, step_size=1, gamma=0.995)
-        # self.optimizer = optim.SGD(self.model.parameters(), lr=0.01, momentum=0.5, weight_decay=0.001) # mnist_softmax
-        # self.optimizer = optim.SGD(self.model.parameters(), lr=0.0001, momentum=0.5, weight_decay=0.001) # lfw_cnn
-        # self.optimizer = optim.SGD(self.model.parameters(), lr=0.0001, momentum=0.5, weight_decay=0.001) # lfw_softmax
         self.aggregatedGradients = []
         self.loss = 0.0
 
@@ -324,28 +318,30 @@ class Client():
         return global_model
 
 
-    def evaluate_accuracy_on_loader(self, loader):
+    def evaluate_f1_on_loader(self, loader):
         """
-        在指定的 Dataloader 上评估当前模型的 Accuracy。
-        返回: accuracy (0.0 ~ 1.0)
+        在指定的 Dataloader 上计算 Macro-F1 Score。
+        Macro-F1 对少数类（8, 9）的变化非常敏感，适合“寻找天才”实验。
         """
-        correct = 0
-        total = 0
+        all_preds = []
+        all_labels = []
+        
         self.model.eval()
         with torch.no_grad():
             for i, data in enumerate(loader, 0):
                 inputs = data['image'].float().to(self.device)
                 labels = data['label'].long().to(self.device)
-                outputs = self.model(inputs)
                 
-                # 获取预测类别
+                outputs = self.model(inputs)
                 _, predicted = torch.max(outputs.data, 1)
                 
-                total += labels.size(0)
-                correct += (predicted == labels).sum().item()
+                all_preds.extend(predicted.cpu().numpy())
+                all_labels.extend(labels.cpu().numpy())
         
-        if total == 0: return 0.0
-        return correct / total
+        # 必须处理全集，不能分 Batch 计算平均，否则 F1 不准确
+        # average='macro': 计算每个类的 F1 然后平均，不考虑样本量。
+        # 这样稀缺类（8, 9）的权重就和普通类（0-7）一样大了。
+        return f1_score(all_labels, all_preds, average='macro', zero_division=0)
 
     def apply_flat_update(self, flat_update):
         """将扁平化的更新向量应用到模型上 (Model += Update)"""

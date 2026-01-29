@@ -37,8 +37,8 @@ class ExperimentConfig:
 
     # Dataset selection rule
     use_mnist_unif_threshold: int = 50052
-    mnist_unif_prefix: str = "mnist_noniid_0.1_client_"
-    mnist_prefix: str = "mnist_unif"
+    mnist_unif_prefix: str = "mnist_exp2_client_"
+    mnist_prefix: str = "mnist_exp2_client_"
 
 
 def print_model_parameters(model, num_values=5):
@@ -69,7 +69,7 @@ def calculate_model_size(model):
 
 def get_dataset_name(port, config: ExperimentConfig):
     if int(port) < config.use_mnist_unif_threshold:
-        return f"{config.mnist_prefix}{int(50063 - int(port)) // 2}"
+        return f"{config.mnist_prefix}{int(int(port) - 50051) // 2}"
     return f"{config.mnist_unif_prefix}{int(int(port) - 50051) // 2}"
 
 
@@ -133,7 +133,7 @@ def run(f):
         if port not in p2p.quality_score_dict:
             p2p.quality_score_dict[port] = config.quality_score_init
 
-    
+
     for iter in range(config.iter_time):
         node.broadcast(bc_enum.SERVICE * bc_enum.DESCOVERY + bc_enum.EXCHANGENODE, None)
         is_committee = client.is_committee_member()
@@ -258,63 +258,54 @@ def average(vecs, datasize_recv):
     return avg_vec
 
 
-# ==== 3. 新的 update_quality_scores 函数 (Accuracy-based Relative Scaling) ====
+# ==== 修改后的 update_quality_scores (基于 Macro-F1) ====
 def update_quality_scores(
-        grad_recv,          # list[np.ndarray]  本轮各客户端梯度
-        port_recv,          # list[int|str]     端口 / 客户端标识
-        client,             # Client 对象
-        root_loader,        # DataLoader        代理共识数据集
+        grad_recv,          
+        port_recv,          
+        client,             
+        root_loader,        
         blockchain,
-        max_score_change=0.2, # 每一轮最大的分数变化量 (由您设定为 0.2)
+        max_score_change=0.2, 
         init_score=1.0):    
     
     if root_loader is None:
-        print("Warning: Root Loader is None, skipping quality update.")
         return
 
-    # 1. 计算基准精度 (Base Accuracy)
-    base_acc = client.evaluate_accuracy_on_loader(root_loader)
-    print(f"Base Accuracy on Proxy Dataset: {base_acc:.4f}")
+    # 1. 计算基准 Macro-F1
+    base_f1 = client.evaluate_f1_on_loader(root_loader)
+    print(f"Base Macro-F1 on Proxy Dataset: {base_f1:.4f}")
     
-    acc_gains = []
+    f1_gains = []
 
-    # 2. 遍历每个梯度，计算精度增益 (Marginal Accuracy Gain)
+    # 2. 遍历梯度，计算 F1 增益
     for g_i, port in zip(grad_recv, port_recv):
-        # 确保格式为 numpy
         if isinstance(g_i, torch.Tensor):
             g_i = g_i.cpu().numpy()
             
-        # A. 应用梯度 (模拟更新)
         client.apply_flat_update(g_i)
-        
-        # B. 计算新精度
-        new_acc = client.evaluate_accuracy_on_loader(root_loader)
-        
-        # C. 撤销梯度 (恢复模型)
+        new_f1 = client.evaluate_f1_on_loader(root_loader) # 使用新函数
         client.revert_flat_update(g_i)
         
-        # D. 计算增益
-        marginal_gain = new_acc - base_acc
-        acc_gains.append(marginal_gain)
+        # Gain = New - Old (正值越大约好)
+        marginal_gain = new_f1 - base_f1
+        f1_gains.append(marginal_gain)
 
-# 3. 找到本轮最大的正向增益 (Max Positive Gain)
-    # 过滤掉负值，只看正值。如果全是负值，则 max_gain = 0
-    max_gain = max([g for g in acc_gains if g > 0]) if any(g > 0 for g in acc_gains) else 0.0
+    # 3. 找到本轮最大的正向增益
+    # F1 的变化通常在 0.01 ~ 0.1 级别，比 Accuracy 敏感
+    max_gain = max([g for g in f1_gains if g > 0]) if any(g > 0 for g in f1_gains) else 0.0
     
+    print(f"Max F1 Gain this round: {max_gain:.6f}")
+
     total_delta = 0.0
     worker_count = 0
 
-    for gain, port in zip(acc_gains, port_recv):
-        # 核心逻辑：只奖励，不惩罚
+    for gain, port in zip(f1_gains, port_recv):
+        # 阈值保护：F1 增益极小时忽略，防止除零或噪声放大
         if gain > 0 and max_gain > 1e-6:
-             # 相对缩放：表现最好的拿满 0.2，其他的按比例拿
              delta_q = (gain / max_gain) * max_score_change
         else:
-             # 负增益或微小增益：不扣分，但也不加分
-             # 这对理性节点已经是惩罚了（因为他们浪费了算力却没拿到分）
              delta_q = 0.0 
         
-        # 更新分数
         if port not in p2p.quality_score_dict:
             p2p.quality_score_dict[port] = init_score
             
@@ -322,12 +313,14 @@ def update_quality_scores(
         total_delta += delta_q
         worker_count += 1
         
-        print(f"Node {port}: BaseAcc={base_acc:.4f}, NewAcc={base_acc+gain:.4f}, Gain={gain:.6f}, DeltaQ={delta_q:.4f}")
+        print(f"Node {port}: Gain={gain:.6f}, DeltaQ={delta_q:.4f}")
 
+    # 4. 委员会补偿
     avg_delta = total_delta / worker_count if worker_count > 0 else 0.0
-
     for member_str in blockchain.committee:
         port = member_str.split(':')[1]
+        if port not in p2p.quality_score_dict:
+            p2p.quality_score_dict[port] = init_score
         p2p.quality_score_dict[port] += avg_delta
 
-    print("质量分数已更新 (含委员会补偿):", p2p.quality_score_dict)
+    print("质量分数已更新 (Macro-F1):", p2p.quality_score_dict)

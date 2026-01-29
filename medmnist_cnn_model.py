@@ -6,16 +6,24 @@ class MedMNISTCNNModel(nn.Module):
     def __init__(self, D_in=None, D_out=9):
         super(MedMNISTCNNModel, self).__init__()
         # Input: 3 x 28 x 28
+        
+        # Conv1: 3 -> 16
         self.conv1 = nn.Conv2d(3, 16, kernel_size=3, padding=1)
-        self.bn1 = nn.BatchNorm2d(16)
+        # 修改: BatchNorm2d(16) -> GroupNorm(4, 16) (16个通道分4组)
+        self.bn1 = nn.GroupNorm(4, 16)
+        
+        # Conv2: 16 -> 32
         self.conv2 = nn.Conv2d(16, 32, kernel_size=3, padding=1)
-        self.bn2 = nn.BatchNorm2d(32)
+        # 修改: BatchNorm2d(32) -> GroupNorm(8, 32) (32个通道分8组)
+        self.bn2 = nn.GroupNorm(8, 32)
+        
+        # Conv3: 32 -> 64
         self.conv3 = nn.Conv2d(32, 64, kernel_size=3, padding=1)
-        self.bn3 = nn.BatchNorm2d(64)
+        # 修改: BatchNorm2d(64) -> GroupNorm(8, 64) (64个通道分8组)
+        self.bn3 = nn.GroupNorm(8, 64)
         
         # Linear layer
-        # 28x28 -> pool -> 14x14 -> pool -> 7x7 -> pool -> 3x3 (approx) or adapt pooling
-        # MaxPool 2x2: 28->14, 14->7, 7->3
+        # MaxPool 2x2 进行了3次: 28->14->7->3
         self.fc1 = nn.Linear(64 * 3 * 3, 128)
         self.fc2 = nn.Linear(128, D_out)
 

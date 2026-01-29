@@ -8,7 +8,7 @@ import torch.optim as optim
 import torch.utils.data
 from torch.autograd import Variable
 import torchvision.transforms as transforms
-from sklearn.metrics import accuracy_score
+from sklearn.metrics import accuracy_score, f1_score
 import numpy as np
 # import pdb
 import datasets
@@ -328,30 +328,32 @@ class Client():
     
         return global_model
 
-# ==== 修改：新增 evaluate_accuracy_on_loader ====
-    def evaluate_accuracy_on_loader(self, loader):
+# ==== 修改：将 evaluate_accuracy_on_loader 替换为 evaluate_on_loader (基于 Loss) ====
+    def evaluate_f1_on_loader(self, loader):
         """
-        在指定的 Dataloader 上评估当前模型的 Accuracy。
-        返回: accuracy (0.0 ~ 1.0)
+        在指定的 Dataloader 上计算 Macro-F1 Score。
+        Macro-F1 对少数类（8, 9）的变化非常敏感，适合“寻找天才”实验。
         """
-        correct = 0
-        total = 0
+        all_preds = []
+        all_labels = []
+        
         self.model.eval()
         with torch.no_grad():
             for i, data in enumerate(loader, 0):
                 inputs = data['image'].float().to(self.device)
                 labels = data['label'].long().to(self.device)
-                outputs = self.model(inputs)
                 
-                # 获取预测类别
+                outputs = self.model(inputs)
                 _, predicted = torch.max(outputs.data, 1)
                 
-                total += labels.size(0)
-                correct += (predicted == labels).sum().item()
+                all_preds.extend(predicted.cpu().numpy())
+                all_labels.extend(labels.cpu().numpy())
         
-        if total == 0: return 0.0
-        return correct / total
-    
+        # 必须处理全集，不能分 Batch 计算平均，否则 F1 不准确
+        # average='macro': 计算每个类的 F1 然后平均，不考虑样本量。
+        # 这样稀缺类（8, 9）的权重就和普通类（0-7）一样大了。
+        return f1_score(all_labels, all_preds, average='macro', zero_division=0)
+        
     def apply_flat_update(self, flat_update):
         """将扁平化的更新向量应用到模型上 (Model += Update)"""
         # --- 新增：安全检查 ---

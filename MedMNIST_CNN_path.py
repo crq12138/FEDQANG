@@ -1,3 +1,3 @@
 
 
-path = "./log/cnn/MEDMNIST/Evaluation/8_iid_1_low_1_high/" 
+path = "./log/cnn/MEDMNIST/exp_C/9_non_iid_1_iid/" 

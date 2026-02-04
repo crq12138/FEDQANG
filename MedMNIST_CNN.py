@@ -21,6 +21,7 @@ os.makedirs(path + "error/", exist_ok=True)
 os.makedirs(path + "quality_score/", exist_ok=True)
 os.makedirs(path + "pay_off/", exist_ok=True)
 os.makedirs(path + "cost/", exist_ok=True)
+os.makedirs(path + "lambda/", exist_ok=True)
 
 @dataclass(frozen=True)
 class ExperimentConfig:
@@ -71,6 +72,7 @@ def log_paths(node_port):
         "quality": f"{path}quality_score/Quality_score_{node_port}.txt",
         "transfer": f"{path}pay_off/Transfer_{node_port}.txt",
         "cost": f"{path}cost/cost_{node_port}.txt",
+        "lambda": f"{path}lambda/lambda_{node_port}.txt",
     }
 
 def gaussian_noise(grad):
@@ -78,6 +80,16 @@ def gaussian_noise(grad):
     可选的噪声注入接口：如需启用，请在此实现噪声逻辑。
     """
     raise NotImplementedError("gaussian_noise 未实现；请根据实验需求补充。")
+
+def calculate_lambda(cost_list, datasize_list, port_list, quality_score_dict):
+    total_cost = float(np.sum(cost_list)) if cost_list else 0.0
+    denominator = 0.0
+    for port, datasize in zip(port_list, datasize_list):
+        quality_score = quality_score_dict.get(port, 0.0)
+        denominator += quality_score * datasize
+    if denominator <= 0:
+        return 0.0
+    return total_cost / denominator
 
 def run(f):
     global new_error, min_error, min_count
@@ -118,6 +130,7 @@ def run(f):
     log_loss3 = open(paths["quality"], "w")
     log_loss4 = open(paths["transfer"], "w")
     log_loss5 = open(paths["cost"], "w")
+    log_loss6 = open(paths["lambda"], "w")
     
     blockchain = blockchain_instance
     non_committee = len(blockchain.nodes) - blockchain.committee_size
@@ -131,6 +144,7 @@ def run(f):
     
     for iter in range(config.iter_time):
         cost_to_log = 0.0
+        lambda_to_log = 0.0
         # 每轮开始前选举委员会成员（已在 Blockchain 类中实现）
         node.broadcast(bc_enum.SERVICE * bc_enum.DESCOVERY + bc_enum.EXCHANGENODE, None)
         is_committee = client.is_committee_member()
@@ -196,6 +210,7 @@ def run(f):
             
             # ==== 2. 调用新的质量评估函数 (Validation Gain) ====
             update_quality_scores(grad_recv, port_recv, client, root_loader, blockchain)
+            lambda_to_log = calculate_lambda(cost_list, datasize_recv, port_recv, p2p.quality_score_dict)
             
             print('grad_receive11111========',grad_recv)
             krum_grad_bytes = pickle.dumps(krum_grad1)
@@ -217,12 +232,14 @@ def run(f):
         log_loss3.write(f"{iter} {p2p.quality_score_dict[p2p.PORT]}\n")
         log_loss4.write(f"{iter} {p2p.transfer_dict[p2p.PORT]}\n")
         log_loss5.write(f"{iter} {cost_to_log}\n")
+        log_loss6.write(f"{iter} {lambda_to_log}\n")
         # log_loss3.write(f"{iter} {0.0}\n")  # 这里的时间记录需要进一步完善
         log_loss1.flush()
         log_loss2.flush()
         log_loss3.flush()
         log_loss4.flush()
         log_loss5.flush()
+        log_loss6.flush()
         
         
         blockchain.receive_new_block()

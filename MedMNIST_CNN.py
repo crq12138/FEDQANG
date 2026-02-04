@@ -200,7 +200,8 @@ def run(f):
             print(f"Epoch {iter}: 委员会 {p2p.PORT} 收集到 {len(grad_recv)} 个梯度。")
             
             krum_grad1 = average(grad_recv, datasize_recv)
-            p2p.transfer_dict = incentive(cost_list, port_recv, krum_grad1, grad_recv)
+            lambda_to_log = calculate_lambda(cost_list, datasize_recv, port_recv, p2p.quality_score_dict)
+            p2p.transfer_dict = incentive(cost_list, datasize_recv, port_recv, p2p.quality_score_dict, lambda_to_log)
             for item in blockchain.committee:
                 p2p.transfer_dict[item.split(':')[1]] = 0.0
             print(grad_recv)
@@ -210,7 +211,6 @@ def run(f):
             
             # ==== 2. 调用新的质量评估函数 (Validation Gain) ====
             update_quality_scores(grad_recv, port_recv, client, root_loader, blockchain)
-            lambda_to_log = calculate_lambda(cost_list, datasize_recv, port_recv, p2p.quality_score_dict)
             
             print('grad_receive11111========',grad_recv)
             krum_grad_bytes = pickle.dumps(krum_grad1)

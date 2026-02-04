@@ -42,6 +42,29 @@ port = str(p2p.PORT)
 filename = medmnist_path + "datasize/traindata_" + port + ".txt"
 log_data = open(filename, "w")
 data_loop = 0
+
+
+def read_previous_lambda(iteration):
+    if iteration <= 0:
+        return 0.0
+    lambda_path = medmnist_path + f"lambda/lambda_{port}.txt"
+    try:
+        with open(lambda_path, "r") as lambda_log:
+            for line in reversed(lambda_log.readlines()):
+                parts = line.strip().split()
+                if len(parts) != 2:
+                    continue
+                try:
+                    iter_idx = int(parts[0])
+                    if iter_idx == iteration - 1:
+                        return float(parts[1])
+                except ValueError:
+                    continue
+    except FileNotFoundError:
+        return 0.0
+    return 0.0
+
+
 def decentralized_game(client, Loss, iter):
     global data_contribution, convergence
     global round_num, decisions, data_loop
@@ -79,7 +102,17 @@ def decentralized_game(client, Loss, iter):
             decisions[round_num] = {}
         data_contribution = decisions[round_num-1].copy()
         print(data_contribution)
-        new_datasize, new_cost, new_payoff = solve_optimal_data_contribution(data_contribution, quality_score_dict, port, None, Loss, 60.0, max_data_size)
+        lambda_prev = read_previous_lambda(iter)
+        new_datasize, new_cost, new_payoff = solve_optimal_data_contribution(
+            data_contribution,
+            quality_score_dict,
+            port,
+            None,
+            Loss,
+            60.0,
+            max_data_size,
+            lambda_prev,
+        )
         step = new_datasize - datasize
         new_datasize = int(step_long * step + datasize)
         # print("这一次的new_datasize大小为：", new_datasize)
@@ -147,7 +180,8 @@ def solve_optimal_data_contribution(
     p_n_dict: dict = None,
     k: float = 0.1,
     T: float = 60.0,
-    max_data_size: int = 0
+    max_data_size: int = 0,
+    lambda_prev: float = 0.0,
 ):
     """
     求解单个参与方在本轮博弈中的最优数据贡献量 (键均为字符串).
@@ -251,8 +285,23 @@ def solve_optimal_data_contribution(
         return cost_upload + cost_download + cost_investment * processing_capacity_f + energy_term
 
     # ------------------------------------------------------------------------
-    # 5) 定义目标函数： loss_function(x_n) = Cost_n - Utility_n
+    # 5) 定义目标函数： loss_function(x_n) = Cost_n - Utility_n - Transfer_n
     # ------------------------------------------------------------------------
+    def transfer_term(participant, x_n, data_contributions, q_scores, lambda_value):
+        if lambda_value == 0:
+            return 0.0
+        old_x = data_contributions[participant]
+        data_contributions[participant] = x_n
+        other_values = [
+            q_scores[i] * data_contributions[i]
+            for i in data_contributions
+            if i != participant
+        ]
+        avg_other = sum(other_values) / len(other_values) if other_values else 0.0
+        q_n = q_scores.get(participant, 0.0)
+        data_contributions[participant] = old_x
+        return lambda_value * (q_n * x_n - avg_other)
+
     def compute_loss_function(x_n, participant):
         # 计算损失下降量
         _, _, loss_dec = compute_loss_decrease(participant, x_n, 
@@ -266,7 +315,9 @@ def solve_optimal_data_contribution(
         # 计算成本
         c_val = cost_function(x_n)
 
-        return c_val - util
+        transfer_val = transfer_term(participant, x_n, all_data_contributions, all_quality_scores, lambda_prev)
+
+        return c_val - util - transfer_val
 
     # ------------------------------------------------------------------------
     # 6) 求解最优的 x_n (最小化 Cost-Utility, 即 maximize Utility-Cost)
@@ -290,9 +341,10 @@ def solve_optimal_data_contribution(
                                         all_data_contributions,
                                         all_quality_scores, k)
     utility_val = utility_function(loss_dec, p_n_val)
+    transfer_val = transfer_term(participant_id, optimal_x_floor, all_data_contributions, all_quality_scores, lambda_prev)
 
     # 计算最终 pay_off (Utility - Cost)
-    final_payoff = utility_val - final_loss
+    final_payoff = utility_val + transfer_val - final_loss
 
     return optimal_x_floor, final_loss, final_payoff
 

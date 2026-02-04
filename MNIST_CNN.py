@@ -188,7 +188,7 @@ def run(f):
             p2p.cost_list.clear()
             print(f"Epoch {iter}: 委员会 {p2p.PORT} 收集到 {len(grad_recv)} 个梯度。")
             krum_grad1 = average(grad_recv, datasize_recv)
-            p2p.transfer_dict = incentive(cost_list, port_recv, krum_grad1, grad_recv)
+            p2p.transfer_dict = incentive(cost_list, datasize_recv, port_recv, p2p.quality_score_dict)
             for item in blockchain.committee:
                 p2p.transfer_dict[item.split(':')[1]] = 0.0
             # print(grad_recv)

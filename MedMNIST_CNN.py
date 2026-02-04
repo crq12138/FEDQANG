@@ -15,12 +15,12 @@ from transfer import incentive
 from MedMNIST_CNN_path import path
 
 import os
-if not os.path.exists(path):
-    os.makedirs(path)
-    os.makedirs(path + "loss/")
-    os.makedirs(path + "error/")
-    os.makedirs(path + "quality_score/")
-    os.makedirs(path + "pay_off/")
+os.makedirs(path, exist_ok=True)
+os.makedirs(path + "loss/", exist_ok=True)
+os.makedirs(path + "error/", exist_ok=True)
+os.makedirs(path + "quality_score/", exist_ok=True)
+os.makedirs(path + "pay_off/", exist_ok=True)
+os.makedirs(path + "cost/", exist_ok=True)
 
 @dataclass(frozen=True)
 class ExperimentConfig:
@@ -70,6 +70,7 @@ def log_paths(node_port):
         "error": f"{path}error/Test_error_{node_port}.txt",
         "quality": f"{path}quality_score/Quality_score_{node_port}.txt",
         "transfer": f"{path}pay_off/Transfer_{node_port}.txt",
+        "cost": f"{path}cost/cost_{node_port}.txt",
     }
 
 def gaussian_noise(grad):
@@ -120,6 +121,7 @@ def run(f):
     log_loss2 = open(paths["error"], "w")
     log_loss3 = open(paths["quality"], "w")
     log_loss4 = open(paths["transfer"], "w")
+    log_loss5 = open(paths["cost"], "w")
     
     blockchain = blockchain_instance
     non_committee = len(blockchain.nodes) - blockchain.committee_size
@@ -132,6 +134,7 @@ def run(f):
 
     
     for iter in range(config.iter_time):
+        cost_to_log = 0.0
         # 每轮开始前选举委员会成员（已在 Blockchain 类中实现）
         node.broadcast(bc_enum.SERVICE * bc_enum.DESCOVERY + bc_enum.EXCHANGENODE, None)
         is_committee = client.is_committee_member()
@@ -148,6 +151,7 @@ def run(f):
                 train_data_size, cost, payoff = game_process.decentralized_game(client, Loss, iter)
                 log_loss4.write(f"{iter} {payoff}\n")
                 log_loss4.flush()
+                cost_to_log = cost
                 if config.zero_grad_when_small and train_data_size <= 128:
                     grad = torch.zeros(98825)
                     client.datasize = 0
@@ -222,11 +226,13 @@ def run(f):
         log_loss2.write(f"{iter} {new_error}\n")
         log_loss3.write(f"{iter} {p2p.quality_score_dict[p2p.PORT]}\n")
         log_loss4.write(f"{iter} {p2p.transfer_dict[p2p.PORT]}\n")
+        log_loss5.write(f"{iter} {cost_to_log}\n")
         # log_loss3.write(f"{iter} {0.0}\n")  # 这里的时间记录需要进一步完善
         log_loss1.flush()
         log_loss2.flush()
         log_loss3.flush()
         log_loss4.flush()
+        log_loss5.flush()
         
         
         # 更新客户端模型

@@ -79,10 +79,6 @@ def gaussian_noise(grad):
     """
     raise NotImplementedError("gaussian_noise 未实现；请根据实验需求补充。")
 
-new_error = 0.0
-min_error = 1.0
-min_count = 0
-
 def run(f):
     global new_error, min_error, min_count
     config = ExperimentConfig()
@@ -209,18 +205,12 @@ def run(f):
             blockchain.consensus_process(krum_grad_bytes, p2p.quality_score_dict, p2p.transfer_dict)
             print(f"Epoch {iter}: 区块链共识完成。")
             
-        blockchain.receive_new_block()
         
         # print("共识后的质量分数字典为", p2p.quality_score_dict)    
         # print("共识后的系统内部货币转移字典为", p2p.transfer_dict)
         
         client.TestLoss()
         new_error = client.getTestErr()
-        if min_error > new_error:
-            min_error = new_error.copy()
-            min_count = 0
-        else:
-            min_count += 1
 
         log_loss1.write(f"{iter} {Loss}\n")
         log_loss2.write(f"{iter} {new_error}\n")
@@ -235,6 +225,7 @@ def run(f):
         log_loss5.flush()
         
         
+        blockchain.receive_new_block()
         # 更新客户端模型
         if blockchain.lastBlock.krumgrad:
             krum_grad = pickle.loads(blockchain.lastBlock.krumgrad)

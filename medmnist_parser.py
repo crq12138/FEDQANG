@@ -3,6 +3,108 @@ import os
 import medmnist
 from medmnist import INFO
 
+# ================= 配置区域 =================
+DATA_FLAG = 'pathmnist'
+ROOT_DIR = './medmnist'
+OUTPUT_PREFIX = 'pathmnist_exp4_client'
+SAMPLES_PER_CLIENT = 3000  # 每个客户端的数据量保持一致
+# ===========================================
+
+def load_raw_data(root_dir, split='train'):
+    """加载原始数据并展平"""
+    info = INFO[DATA_FLAG]
+    DataClass = getattr(medmnist, info['python_class'])
+    
+    # 下载/加载数据
+    dataset = DataClass(split=split, transform=None, download=True, root=root_dir)
+    
+    images = dataset.imgs
+    labels = dataset.labels
+    
+    # 展平: (N, 28, 28, 3) -> (N, 2352)
+    n, h, w, c = images.shape
+    flat_dim = h * w * c
+    X = images.reshape(n, flat_dim)
+    y = labels.flatten()
+    
+    return X, y
+
+def sample_balanced_data(X, y, target_classes, n_samples):
+    """
+    从指定类别 (target_classes) 中，均匀采样 n_samples 个数据
+    """
+    # 1. 筛选出属于目标类别的数据
+    indices_pool = []
+    for cls in target_classes:
+        # 找到所有属于该类别的索引
+        cls_indices = np.where(y == cls)[0]
+        indices_pool.extend(cls_indices)
+    
+    indices_pool = np.array(indices_pool)
+    
+    # 2. 如果数据不够，允许重复采样 (Replace=True)；够的话不重复
+    replace = len(indices_pool) < n_samples
+    if len(indices_pool) == 0:
+        print(f"Error: No data found for classes {target_classes}")
+        return np.array([]), np.array([])
+        
+    selected_indices = np.random.choice(indices_pool, size=n_samples, replace=replace)
+    
+    return X[selected_indices], y[selected_indices]
+
+def generate_exp4_data():
+    if not os.path.exists(ROOT_DIR):
+        os.makedirs(ROOT_DIR)
+        
+    print(f"Loading {DATA_FLAG} data...")
+    X_train, y_train = load_raw_data(ROOT_DIR, split='train')
+    
+    all_classes = np.unique(y_train) # PathMNIST 应该是 0-8
+    print(f"All classes: {all_classes}")
+    
+    # --- 1. 生成 Client 0: Genius (IID) ---
+    # 拥有所有 9 个类别
+    print(f"\nGenerating Client 0 (Genius - IID)...")
+    X_0, y_0 = sample_balanced_data(X_train, y_train, all_classes, SAMPLES_PER_CLIENT)
+    data_0 = np.hstack((X_0, y_0[:, None]))
+    np.save(os.path.join(ROOT_DIR, f"{OUTPUT_PREFIX}_0.npy"), data_0)
+    print(f"  -> Saved Client 0: shape {data_0.shape}, Classes: All 0-8")
+
+    # --- 2. 生成 Client 1-8: Ordinary (7 Classes) ---
+    print(f"\nGenerating Client 1-8 (Ordinary - 7 Classes)...")
+    for i in range(1, 9):
+        # 随机选 7 个类别
+        target_classes = np.random.choice(all_classes, 6, replace=False)
+        target_classes.sort()
+        
+        X_i, y_i = sample_balanced_data(X_train, y_train, target_classes, SAMPLES_PER_CLIENT)
+        data_i = np.hstack((X_i, y_i[:, None]))
+        np.save(os.path.join(ROOT_DIR, f"{OUTPUT_PREFIX}_{i}.npy"), data_i)
+        print(f"  -> Saved Client {i}: shape {data_i.shape}, Classes: {target_classes}")
+
+    # --- 3. 生成 Client 9: Free-rider (2 Classes) ---
+    # 只拥有类别 0, 1 (或者随机两个)
+    print(f"\nGenerating Client 9 (Free-rider - 2 Classes)...")
+    # 为了让它看起来确实像混子，我们固定选前两个最常见的类，或者随机
+    # 这里固定选 [0, 1] 方便写论文描述
+    target_classes = [0, 1] 
+    
+    X_9, y_9 = sample_balanced_data(X_train, y_train, target_classes, SAMPLES_PER_CLIENT)
+    data_9 = np.hstack((X_9, y_9[:, None]))
+    np.save(os.path.join(ROOT_DIR, f"{OUTPUT_PREFIX}_9.npy"), data_9)
+    print(f"  -> Saved Client 9: shape {data_9.shape}, Classes: {target_classes}")
+
+    # --- 4. 确保测试集存在 ---
+    test_path = os.path.join(ROOT_DIR, "pathmnist_test.npy")
+    if not os.path.exists(test_path):
+        print("\nGenerating Test Set...")
+        X_test, y_test = load_raw_data(ROOT_DIR, split='test')
+        test_data = np.hstack((X_test, y_test[:, None]))
+        np.save(test_path, test_data)
+        print(f"  -> Saved Test Set: {test_data.shape}")
+    else:
+        print(f"\nTest Set already exists at {test_path}")
+
 def generate_medmnist_data(root_dir='./medmnist_data'):
     """
     下载 PathMNIST 数据并转换为项目通用的 .npy 格式。
@@ -233,4 +335,6 @@ if __name__ == "__main__":
     # generate_medmnist_exp1_data()
     
     # --- 2. 运行实验二数据生成 ---
-    generate_medmnist_exp2_data()
+    # generate_medmnist_exp2_data()
+
+    generate_exp4_data()

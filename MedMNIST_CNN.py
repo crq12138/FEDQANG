@@ -11,6 +11,7 @@ import bc_enum
 import p2p
 from medmnist_cnn_model import MedMNISTCNNModel  # 引入新模型
 from client_MEDMNIST import Client
+import cost_compute
 from transfer import incentive
 from MedMNIST_CNN_path import path
 
@@ -194,6 +195,8 @@ def run(f):
                     grad = client.getGrad()
             else:
                 grad = client.getGrad()
+                cost = cost_compute.compute_cost(client.datasize)
+                cost_to_log = cost
 
             if config.use_noise:
                 grad = gaussian_noise(grad)

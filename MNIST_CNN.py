@@ -37,8 +37,8 @@ class ExperimentConfig:
 
     # Dataset selection rule
     use_mnist_unif_threshold: int = 50052
-    mnist_unif_prefix: str = "mnist_exp2_client_"
-    mnist_prefix: str = "mnist_exp2_client_"
+    mnist_unif_prefix: str = "mnist_exp4_client_"
+    mnist_prefix: str = "mnist_exp4_client_"
 
 
 def print_model_parameters(model, num_values=5):

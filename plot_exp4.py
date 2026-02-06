@@ -4,9 +4,11 @@ import numpy as np
 import os
 import re
 import glob
+from pay_off_compute import compute_pay_off
 
 # ================= 配置区域 =================
 LOG_DIR_CLASS = './log/cnn/MEDMNIST/exp_D/class'  # Transfer 日志路径
+LOG_DIR_FEDAVG = './log/cnn/MEDMNIST/exp_D/fedavg'
 OUTPUT_DIR = './result/exp4/'
 
 # 端口定义
@@ -179,7 +181,59 @@ def plot_final_v2():
     plt.savefig(save_path, dpi=300)
     print(f"图表已保存 (v3修正版): {save_path}")
 
+def plot_payoff_comparison():
+    """对比 FEDQANG 与 FedAvg 下天才/混子节点的 pay_off。"""
+
+    ordinary_fedqang = [
+        compute_pay_off(port, LOG_DIR_CLASS, False) for port in CLIENTS_ORDINARY
+    ]
+    ordinary_fedavg = [
+        compute_pay_off(port, LOG_DIR_FEDAVG, False) for port in CLIENTS_ORDINARY
+    ]
+
+    payoff_fedqang = {
+        "Genius": compute_pay_off(CLIENT_GENIUS, LOG_DIR_CLASS, False),
+        "Ordinary": float(np.mean(ordinary_fedqang)) if ordinary_fedqang else 0.0,
+        "Idiot": compute_pay_off(CLIENT_FREERIDER, LOG_DIR_CLASS, False),
+    }
+    payoff_fedavg = {
+        "Genius": compute_pay_off(CLIENT_GENIUS, LOG_DIR_FEDAVG, False),
+        "Ordinary": float(np.mean(ordinary_fedavg)) if ordinary_fedavg else 0.0,
+        "Idiot": compute_pay_off(CLIENT_FREERIDER, LOG_DIR_FEDAVG, False),
+    }
+
+    labels = ["Genius", "Ordinary", "Idiot"]
+    fedqang_vals = [payoff_fedqang[label] for label in labels]
+    fedavg_vals = [payoff_fedavg[label] for label in labels]
+
+    plt.rcParams.update({
+        'font.family': 'serif',
+        'mathtext.fontset': 'stix',
+        'font.size': 12
+    })
+
+    x = np.arange(len(labels))
+    width = 0.32
+
+    fig, ax = plt.subplots(figsize=(7.2, 4.8))
+    ax.bar(x - width / 2, fedqang_vals, width, label='FEDQANG',
+           color='#1f77b4', edgecolor='black', hatch='//')
+    ax.bar(x + width / 2, fedavg_vals, width, label='FedAvg',
+           color='#ff7f0e', edgecolor='black', hatch='\\\\')
+
+    ax.set_ylabel('Payoff', fontsize=13, fontweight='bold')
+    ax.set_xticks(x)
+    ax.set_xticklabels(labels, fontsize=12, fontweight='bold')
+    ax.legend(fontsize=11, loc='best', frameon=True, fancybox=True)
+    ax.grid(axis='y', linestyle='--', alpha=0.5)
+
+    plt.tight_layout()
+    save_path = os.path.join(OUTPUT_DIR, 'payoff_comparison_fedqang_vs_fedavg.png')
+    plt.savefig(save_path, dpi=300)
+    print(f"Payoff 对比图已保存: {save_path}")
+
 if __name__ == "__main__":
     if not os.path.exists(OUTPUT_DIR):
         os.makedirs(OUTPUT_DIR)
-    plot_final_v2()
+    # plot_final_v2()
+    plot_payoff_comparison()

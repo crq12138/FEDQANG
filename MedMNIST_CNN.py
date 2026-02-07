@@ -34,6 +34,7 @@ class ExperimentConfig:
     wait_for_network_s: float = 5.0
     quality_score_init: float = 1.0
     use_game_process: bool = False
+    lazy_game_once: bool = False
     send_initial_model: bool = False
     use_noise: bool = False
     zero_grad_when_small: bool = True
@@ -187,7 +188,12 @@ def run(f):
             # ==== 修改点 2：增加随机策略逻辑 ====
             if config.use_game_process:
                 # 原有的博弈逻辑
-                train_data_size, cost, payoff = game_process.decentralized_game(client, Loss, epoch_idx)
+                train_data_size, cost, payoff = game_process.decentralized_game(
+                    client,
+                    Loss,
+                    epoch_idx,
+                    lazy_once=config.lazy_game_once,
+                )
                 log_loss4.write(f"{epoch_idx} {payoff}\n")
                 log_loss4.flush()
                 cost_to_log = cost

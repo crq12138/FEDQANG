@@ -13,8 +13,19 @@ import bc_enum
 import p2p
 from mnist_cnn_model import MNISTCNNModel
 from client_MNIST import Client
+import cost_compute
 from transfer import incentive
 from MNIST_CNN_path import path
+import os
+
+os.makedirs(path, exist_ok=True)
+os.makedirs(path + "loss/", exist_ok=True)
+os.makedirs(path + "error/", exist_ok=True)
+os.makedirs(path + "quality_score/", exist_ok=True)
+os.makedirs(path + "pay_off/", exist_ok=True)
+os.makedirs(path + "cost/", exist_ok=True)
+os.makedirs(path + "lambda/", exist_ok=True)
+os.makedirs(path + "transfer/", exist_ok=True)
 
 epsilon = 0.04
 sigama = 1e-5
@@ -30,12 +41,15 @@ class ExperimentConfig:
     quality_score_init: float = 1.0
 
     # Experiment toggles
-    use_game_process: bool = False
+    use_game_process: bool = True
+    lazy_game_once: bool = True
     send_initial_model: bool = False
     use_noise: bool = False
     zero_grad_when_small: bool = False
+    use_random_strategy: bool = False
 
     # Dataset selection rule
+    dataset_dir: str = "mnist"
     use_mnist_unif_threshold: int = 50052
     mnist_unif_prefix: str = "mnist_exp4_client_"
     mnist_prefix: str = "mnist_exp4_client_"
@@ -67,10 +81,9 @@ def calculate_model_size(model):
     return total_size
 
 
-def get_dataset_name(port, config: ExperimentConfig):
-    if int(port) < config.use_mnist_unif_threshold:
-        return f"{config.mnist_prefix}{int(int(port) - 50051) // 2}"
-    return f"{config.mnist_unif_prefix}{int(int(port) - 50051) // 2}"
+def get_dataset_filename(port, config: ExperimentConfig):
+    client_id = (int(port) - 50051) // 2
+    return f"{config.mnist_prefix}{client_id}"
 
 
 def log_paths(node_port):
@@ -78,12 +91,48 @@ def log_paths(node_port):
         "loss": f"{path}loss/loss_{node_port}.txt",
         "error": f"{path}error/Test_error_{node_port}.txt",
         "quality": f"{path}quality_score/Quality_score_{node_port}.txt",
-        "transfer": f"{path}pay_off/Transfer_{node_port}.txt",
+        "pay_off": f"{path}pay_off/pay_off{node_port}.txt",
+        "cost": f"{path}cost/cost_{node_port}.txt",
+        "lambda": f"{path}lambda/lambda_{node_port}.txt",
+        "transfer": f"{path}transfer/Transfer_{node_port}.txt",
     }
 
 
 def gaussian_noise(grad):
     raise NotImplementedError("gaussian_noise 未实现；请根据实验需求补充。")
+
+
+def calculate_lambda(cost_list, datasize_list, port_list, quality_score_dict):
+    total_cost = float(np.sum(cost_list)) if cost_list else 0.0
+    denominator = 0.0
+    for port, datasize in zip(port_list, datasize_list):
+        quality_score = quality_score_dict.get(port, 0.0)
+        denominator += quality_score * datasize
+    if denominator <= 0:
+        return 0.0
+    return total_cost / denominator
+
+
+def read_lambda_from_log(target_port, iteration):
+    if iteration < 0:
+        return 0.0
+    lambda_path = f"{path}lambda/lambda_{target_port}.txt"
+    while True:
+        try:
+            with open(lambda_path, "r") as lambda_log:
+                for line in reversed(lambda_log.readlines()):
+                    parts = line.strip().split()
+                    if len(parts) != 2:
+                        continue
+                    try:
+                        iter_idx = int(parts[0])
+                        if iter_idx == iteration:
+                            return float(parts[1])
+                    except ValueError:
+                        continue
+        except FileNotFoundError:
+            pass
+        time.sleep(0.5)
 
 new_error = 0.0
 min_error = 1.0
@@ -100,9 +149,9 @@ def run(f):
     
     from core import blockchain_instance
     import game_process
-    dataset_name = get_dataset_name(p2p.PORT, config)
+    dataset_name = get_dataset_filename(p2p.PORT, config)
     client = Client(
-        "mnist",
+        config.dataset_dir,
         dataset_name,
         "mnist",
         config.batch_size,
@@ -114,7 +163,7 @@ def run(f):
     
     # ==== 1. 加载 Proxy Consensus Dataset (Root Dataset) ====
     # 使用 ./mnist 作为 root_dir
-    root_loader = datasets.get_proxy_dataloader("mnist", "./mnist", batch_size=config.batch_size, sample_size=500)
+    root_loader = datasets.get_proxy_dataloader("mnist", config.dataset_dir, batch_size=config.batch_size, sample_size=500)
     
     client.TestLoss()
     new_error = client.getTestErr()
@@ -122,7 +171,10 @@ def run(f):
     log_loss1 = open(paths["loss"], "w")
     log_loss2 = open(paths["error"], "w")
     log_loss3 = open(paths["quality"], "w")
-    log_loss4 = open(paths["transfer"], "w")
+    log_loss4 = open(paths["pay_off"], "w")
+    log_loss5 = open(paths["cost"], "w")
+    log_loss6 = open(paths["lambda"], "w")
+    log_loss7 = open(paths["transfer"], "w")
     blockchain = blockchain_instance
 
     non_committee = len(blockchain.nodes) - blockchain.committee_size
@@ -134,10 +186,12 @@ def run(f):
             p2p.quality_score_dict[port] = config.quality_score_init
 
 
-    for iter in range(config.iter_time):
+    for epoch_idx in range(config.iter_time):
+        cost_to_log = 0.0
+        lambda_to_log = 0.0
         node.broadcast(bc_enum.SERVICE * bc_enum.DESCOVERY + bc_enum.EXCHANGENODE, None)
         is_committee = client.is_committee_member()
-        if config.send_initial_model and iter == 0:
+        if config.send_initial_model and epoch_idx == 0:
             print("开始获取初始全局模型")
             client.send_models()
         
@@ -147,26 +201,46 @@ def run(f):
             print("此节点不是委员会成员，开始进行梯度计算并发送梯度")
             cost = 0
             if config.use_game_process:
-                train_data_size, cost, payoff = game_process.decentralized_game(client, Loss, iter)
-                log_loss4.write(f"{iter} {payoff}\n")
+                train_data_size, cost, payoff = game_process.decentralized_game(
+                    client,
+                    Loss,
+                    epoch_idx,
+                    lazy_once=config.lazy_game_once,
+                )
+                log_loss4.write(f"{epoch_idx} {payoff}\n")
                 log_loss4.flush()
+                cost_to_log = cost
                 if config.zero_grad_when_small and train_data_size <= 10:
                     grad = torch.zeros(1663370)
                     client.datasize = 0
                 else:
                     client.set_train_datasize(train_data_size)
                     grad = client.getGrad()
+            elif config.use_random_strategy:
+                max_data_len = client.trainset.n
+                random_size = random.randint(0, max_data_len)
+                client.set_train_datasize(random_size)
+                grad = client.getGrad()
+                cost = cost_compute.compute_cost(random_size)
+                cost_to_log = cost
+                print(f"Epoch {epoch_idx}: [Random Strategy] Data Size set to {random_size}/{max_data_len}")
             else:
                 grad = client.getGrad()
+                cost = cost_compute.compute_cost(client.datasize)
+                cost_to_log = cost
 
             if config.use_noise:
                 grad = gaussian_noise(grad)
             client.send_grad_to_committee(grad, cost)
-            print(f"Epoch {iter}: 梯度已发送给委员会成员。")
+            print(f"Epoch {epoch_idx}: 梯度已发送给委员会成员。")
+            if blockchain.committee:
+                committee_node = next(iter(blockchain.committee))
+                committee_port = committee_node.split(":")[1]
+                lambda_to_log = read_lambda_from_log(committee_port, epoch_idx)
             
         else:
             time.sleep(config.wait_for_network_s)
-            print(f"Epoch {iter}: 作为委员会成员，开始收集梯度。")
+            print(f"Epoch {epoch_idx}: 作为委员会成员，开始收集梯度。")
             while(len(p2p.grad_list) != non_committee):
                 time.sleep(2)
             
@@ -186,9 +260,10 @@ def run(f):
             p2p.datasize_list.clear()
             p2p.port_list.clear()
             p2p.cost_list.clear()
-            print(f"Epoch {iter}: 委员会 {p2p.PORT} 收集到 {len(grad_recv)} 个梯度。")
+            print(f"Epoch {epoch_idx}: 委员会 {p2p.PORT} 收集到 {len(grad_recv)} 个梯度。")
             krum_grad1 = average(grad_recv, datasize_recv)
-            p2p.transfer_dict = incentive(cost_list, datasize_recv, port_recv, p2p.quality_score_dict)
+            lambda_to_log = calculate_lambda(cost_list, datasize_recv, port_recv, p2p.quality_score_dict)
+            p2p.transfer_dict = incentive(cost_list, datasize_recv, port_recv, p2p.quality_score_dict, lambda_to_log)
             for item in blockchain.committee:
                 p2p.transfer_dict[item.split(':')[1]] = 0.0
             # print(grad_recv)
@@ -205,11 +280,9 @@ def run(f):
 
             print("旧一轮质量分数列表为", p2p.quality_score_dict)
             blockchain.consensus_process(krum_grad_bytes, p2p.quality_score_dict, p2p.transfer_dict)
-            print(f"Epoch {iter}: 区块链共识完成。")
+            print(f"Epoch {epoch_idx}: 区块链共识完成。")
             
         blockchain.receive_new_block()
-        print("共识后的质量分数字典为", p2p.quality_score_dict)    
-        print("共识后的系统内部货币转移字典为", p2p.transfer_dict)
         client.TestLoss()
         new_error = client.getTestErr()
         if min_error > new_error:
@@ -218,24 +291,28 @@ def run(f):
         else:
             min_count += 1
 
-        log_loss1.write(f"{iter} {Loss}\n")
-        log_loss2.write(f"{iter} {new_error}\n")
-        log_loss3.write(f"{iter} {p2p.quality_score_dict[p2p.PORT]}\n")
-        log_loss4.write(f"{iter} {p2p.transfer_dict[p2p.PORT]}\n")
+        log_loss1.write(f"{epoch_idx} {Loss}\n")
+        log_loss2.write(f"{epoch_idx} {new_error}\n")
+        log_loss3.write(f"{epoch_idx} {p2p.quality_score_dict[p2p.PORT]}\n")
+        log_loss5.write(f"{epoch_idx} {cost_to_log}\n")
+        log_loss6.write(f"{epoch_idx} {lambda_to_log}\n")
+        log_loss7.write(f"{epoch_idx} {p2p.transfer_dict[p2p.PORT]}\n")
         # log_loss3.write(f"{iter} {0.0}\n")  # 这里的时间记录需要进一步完善
         log_loss1.flush()
         log_loss2.flush()
         log_loss3.flush()
-        log_loss4.flush()
+        log_loss5.flush()
+        log_loss6.flush()
+        log_loss7.flush()
         
         if blockchain.lastBlock.krumgrad:
             krum_grad = pickle.loads(blockchain.lastBlock.krumgrad)
             client.updateGrad(krum_grad)
             client.step()
-            print(f"Epoch {iter}: 模型已更新。")
+            print(f"Epoch {epoch_idx}: 模型已更新。")
             print('krumgrad==========',krum_grad)
         else:
-            print(f"Epoch {iter}: 错误 - 区块链的最后一个区块缺少 krumgrad。")
+            print(f"Epoch {epoch_idx}: 错误 - 区块链的最后一个区块缺少 krumgrad。")
         if blockchain.ipport == min(blockchain.committee, key=lambda node: int(node.split(":")[1])):
             node.send_epoch()
         else:

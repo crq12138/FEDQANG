@@ -65,7 +65,7 @@ def read_previous_lambda(iteration):
     return 0.0
 
 
-def decentralized_game(client, Loss, iter):
+def decentralized_game(client, Loss, iter, lazy_once=False):
     global data_contribution, convergence
     global round_num, decisions, data_loop
     max_data_size = client.trainset.n
@@ -92,6 +92,26 @@ def decentralized_game(client, Loss, iter):
     while(len(decisions[round_num]) != non_com_size):
         time.sleep(2)
         print("博弈开始，目前收到的data_contribution是:", decisions[round_num])
+    if lazy_once:
+        current_contrib = decisions[round_num].copy()
+        lambda_prev = read_previous_lambda(iter)
+        lazy_datasize, lazy_cost, lazy_payoff = solve_optimal_data_contribution(
+            current_contrib,
+            quality_score_dict,
+            port,
+            None,
+            Loss,
+            60.0,
+            max_data_size,
+            lambda_prev,
+        )
+        log_data.write(f"{iter} {lazy_datasize}\n")
+        log_data.flush()
+        data_loop = lazy_datasize
+        round_num = 0
+        decisions.clear()
+        convergence.clear()
+        return float(lazy_datasize), lazy_cost, lazy_payoff
     while True:
         convergence_self = 0
         round_num += 1

@@ -33,12 +33,12 @@ class ExperimentConfig:
     seed: int = 42
     wait_for_network_s: float = 5.0
     quality_score_init: float = 1.0
-    use_game_process: bool = False
-    lazy_game_once: bool = False
+    use_game_process: bool = True
+    lazy_game_once: bool = True
     send_initial_model: bool = False
     use_noise: bool = False
     zero_grad_when_small: bool = True
-    use_random_strategy: bool = True    # <--- 开启随机策略
+    use_random_strategy: bool = False    # <--- 开启随机策略
     
     # Dataset selection rule
     dataset_dir: str = "medmnist"
@@ -211,7 +211,7 @@ def run(f):
                 
                 # 2. 在 [0, max] 之间随机选择一个整数作为本轮的数据贡献量
                 random_size = random.randint(0, max_data_len)
-                
+
                 # 3. 设置数据量并计算梯度
                 client.set_train_datasize(random_size)
                 grad = client.getGrad()

@@ -111,6 +111,7 @@ def decentralized_game(client, Loss, iter, lazy_once=False):
         round_num = 0
         decisions.clear()
         convergence.clear()
+        print("客户端采取lazy策略")
         return float(lazy_datasize), lazy_cost, lazy_payoff
     while True:
         convergence_self = 0

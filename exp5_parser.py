@@ -2,20 +2,71 @@ import numpy as np
 import os
 import medmnist
 from medmnist import INFO
+from torchvision import datasets
 
 # 配置
-DATA_FLAG = 'pathmnist'
-ROOT_DIR = './medmnist'
-OUTPUT_PREFIX = 'pathmnist_exp5_client'
+# 直接在这里切换数据集: 'pathmnist' / 'mnist' / 'cifar10'
+DATASET_NAME = 'pathmnist'
+
+DATASET_CONFIG = {
+    'pathmnist': {
+        'root_dir': './medmnist',
+        'output_prefix': 'pathmnist_exp5_client',
+        'test_file': 'pathmnist_test.npy',
+    },
+    'mnist': {
+        'root_dir': './mnist',
+        'output_prefix': 'mnist_exp5_client',
+        'test_file': 'mnist_test.npy',
+    },
+    'cifar10': {
+        'root_dir': './cifar-10-batches-py/cifar10',
+        'output_prefix': 'cifar10_exp5_client',
+        'test_file': 'cifar10_test.npy',
+    }
+}
+
+if DATASET_NAME not in DATASET_CONFIG:
+    supported = ', '.join(DATASET_CONFIG.keys())
+    raise ValueError(f"Unsupported dataset '{DATASET_NAME}'. Supported: {supported}")
+
+ROOT_DIR = DATASET_CONFIG[DATASET_NAME]['root_dir']
+OUTPUT_PREFIX = DATASET_CONFIG[DATASET_NAME]['output_prefix']
+TEST_FILE = DATASET_CONFIG[DATASET_NAME]['test_file']
 
 def load_raw_data(root_dir, split='train'):
-    info = INFO[DATA_FLAG]
-    DataClass = getattr(medmnist, info['python_class'])
-    dataset = DataClass(split=split, transform=None, download=True, root=root_dir)
-    images = dataset.imgs
-    labels = dataset.labels
-    n, h, w, c = images.shape
-    return images.reshape(n, -1), labels.flatten()
+    if DATASET_NAME == 'pathmnist':
+        info = INFO['pathmnist']
+        DataClass = getattr(medmnist, info['python_class'])
+        dataset = DataClass(split=split, transform=None, download=True, root=root_dir)
+        images = dataset.imgs
+        labels = dataset.labels
+        n = images.shape[0]
+        return images.reshape(n, -1), labels.flatten()
+
+    if DATASET_NAME == 'mnist':
+        dataset = datasets.MNIST(
+            root=root_dir,
+            train=(split == 'train'),
+            download=True,
+        )
+        images = dataset.data.numpy()
+        labels = np.array(dataset.targets)
+        n = images.shape[0]
+        return images.reshape(n, -1), labels.flatten()
+
+    if DATASET_NAME == 'cifar10':
+        dataset = datasets.CIFAR10(
+            root=root_dir,
+            train=(split == 'train'),
+            download=True,
+        )
+        images = np.array(dataset.data)
+        labels = np.array(dataset.targets)
+        n = images.shape[0]
+        return images.reshape(n, -1), labels.flatten()
+
+    raise ValueError(f"Unsupported dataset '{DATASET_NAME}'")
 
 def sample_data(X, y, classes, n_samples):
     indices = []
@@ -51,7 +102,9 @@ def sample_repetitive_data(X, y, classes, n_total_samples, n_unique_seeds=50):
 def generate_exp5():
     if not os.path.exists(ROOT_DIR): os.makedirs(ROOT_DIR)
     X, y = load_raw_data(ROOT_DIR, 'train')
-    all_cls = np.unique(y) # 0-8
+    all_cls = np.unique(y)
+
+    print(f"Generating Exp5 split for {DATASET_NAME}...")
 
     # 1. 天才 (Client 0): IID, 数据少 (Trap: FedAvg会忽略它)
     print("Genius (Small Data)...")
@@ -78,7 +131,7 @@ def generate_exp5():
 
     # Test set
     Xt, yt = load_raw_data(ROOT_DIR, 'test')
-    np.save(f"{ROOT_DIR}/pathmnist_test.npy", np.hstack((Xt, yt[:,None])))
+    np.save(f"{ROOT_DIR}/{TEST_FILE}", np.hstack((Xt, yt[:,None])))
     print("Done.")
 
 if __name__ == "__main__":

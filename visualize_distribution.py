@@ -136,7 +136,7 @@ if __name__ == "__main__":
     if os.path.exists("./medmnist"):
         plot_distribution(
             data_dir="./medmnist", 
-            file_prefix="pathmnist_exp2_client_", 
+            file_prefix="pathmnist_exp5_client_", 
             title="PathMNIST (MedMNIST) Distribution", 
             num_classes=9, # PathMNIST 是9类
             save_path="medmnist_dist.png"

@@ -6,7 +6,7 @@ from torch.utils.data import Dataset
 from PIL import Image
 
 class MedMNISTDataset(Dataset):
-    def __init__(self, filename, root_dir, transform=None, is_train=True, train_cut=0.5):
+    def __init__(self, filename, root_dir, transform=None, is_train=True, train_cut=1):
         self.filename = filename
         self.root_dir = root_dir
         self.transform = transform

@@ -37,12 +37,13 @@ class ExperimentConfig:
     send_initial_model: bool = False
     use_noise: bool = False
     zero_grad_when_small: bool = True
+    use_random_strategy: bool = True    # <--- 开启随机策略
     
     # Dataset selection rule
     dataset_dir: str = "medmnist"
     use_medmnist_unif_threshold: int = 50052
-    medmnist_unif_prefix: str = "pathmnist_exp4_client_"
-    medmnist_prefix: str = "pathmnist_exp4_client_"
+    medmnist_unif_prefix: str = "pathmnist_exp5_client_"
+    medmnist_prefix: str = "pathmnist_exp5_client_"
 
 def set_seed(seed: int):
     random.seed(seed)
@@ -182,7 +183,10 @@ def run(f):
         if not is_committee:
             print("此节点不是委员会成员，开始进行梯度计算并发送梯度")
             cost = 0
+            
+            # ==== 修改点 2：增加随机策略逻辑 ====
             if config.use_game_process:
+                # 原有的博弈逻辑
                 train_data_size, cost, payoff = game_process.decentralized_game(client, Loss, epoch_idx)
                 log_loss4.write(f"{epoch_idx} {payoff}\n")
                 log_loss4.flush()
@@ -193,10 +197,31 @@ def run(f):
                 else:
                     client.set_train_datasize(train_data_size)
                     grad = client.getGrad()
+            
+            elif config.use_random_strategy:
+                # --- 新增：随机策略逻辑 ---
+                # 1. 获取该客户端拥有的最大数据总量
+                max_data_len = client.trainset.n
+                
+                # 2. 在 [0, max] 之间随机选择一个整数作为本轮的数据贡献量
+                random_size = random.randint(0, max_data_len)
+                
+                # 3. 设置数据量并计算梯度
+                client.set_train_datasize(random_size)
+                grad = client.getGrad()
+                
+                # 4. 计算对应的计算成本
+                cost = cost_compute.compute_cost(random_size)
+                cost_to_log = cost
+                
+                print(f"Epoch {epoch_idx}: [Random Strategy] Data Size set to {random_size}/{max_data_len}")
+
             else:
+                # 原有的全量/固定逻辑
                 grad = client.getGrad()
                 cost = cost_compute.compute_cost(client.datasize)
                 cost_to_log = cost
+            # ===================================
 
             if config.use_noise:
                 grad = gaussian_noise(grad)

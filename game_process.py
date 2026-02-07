@@ -209,7 +209,7 @@ def solve_optimal_data_contribution(
 
     # 若未提供 p_n_dict, 则为所有参与方设定一个默认 p_n=8.0
     if p_n_dict is None:
-        p_n_dict = {pid: 0.8 for pid in all_data_contributions.keys()}
+        p_n_dict = {pid: 2.0 for pid in all_data_contributions.keys()}
 
     # 若未提供 max_data_size_dict, 则为所有参与方设定一个默认最大贡献量5000
     # if max_data_size_dict is None:

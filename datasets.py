@@ -72,12 +72,9 @@ def get_proxy_dataloader(dataset_name, root_dir, batch_size=32, sample_size=200)
                 transforms.Normalize(mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5])
             ])
         # ========================================================
-        
         full_test_set = Dataset(test_filename, root_dir, is_train=False, transform=transform)
-
         indices = np.random.choice(len(full_test_set), min(len(full_test_set), sample_size), replace=False)
         subset = torch.utils.data.Subset(full_test_set, indices)
-        
         loader = torch.utils.data.DataLoader(subset, batch_size=batch_size, shuffle=False)
         print(f"Proxy Consensus Dataset (Root Dataset) created with {len(subset)} samples.")
         return loader

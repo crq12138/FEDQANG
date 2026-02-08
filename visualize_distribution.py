@@ -116,28 +116,28 @@ if __name__ == "__main__":
     # if os.path.exists("./mnist"):
     #     plot_distribution(
     #         data_dir="./mnist", 
-    #         file_prefix="mnist_exp2_client_",  # 或者是 "mnist_unif_" 取决于您 parser 的设置
+    #         file_prefix="mnist_exp5_client_",  # 或者是 "mnist_unif_" 取决于您 parser 的设置
     #         title="MNIST Client Data Distribution",
     #         num_classes=10,
     #         save_path="mnist_dist.png"
     #     )
 
     # # 示例 2: 查看 CIFAR-10 分布
-    # if os.path.exists("./cifar-10-batches-py/cifar10"):
-    #     plot_distribution(
-    #         data_dir="./cifar-10-batches-py/cifar10", 
-    #         file_prefix="cifar10_exp2_client_", 
-    #         title="CIFAR-10 Client Data Distribution", 
-    #         num_classes=10,
-    #         save_path="cifar10_dist.png"
-    #     )
+    if os.path.exists("./cifar-10-batches-py/cifar10"):
+        plot_distribution(
+            data_dir="./cifar-10-batches-py/cifar10", 
+            file_prefix="cifar10_exp5_client_", 
+            title="CIFAR-10 Client Data Distribution", 
+            num_classes=10,
+            save_path="cifar10_dist.png"
+        )
         
     # # 示例 3: 查看 MedMNIST (PathMNIST) 分布
-    if os.path.exists("./medmnist"):
-        plot_distribution(
-            data_dir="./medmnist", 
-            file_prefix="pathmnist_exp5_client_", 
-            title="PathMNIST (MedMNIST) Distribution", 
-            num_classes=9, # PathMNIST 是9类
-            save_path="medmnist_dist.png"
-        )
+    # if os.path.exists("./medmnist"):
+    #     plot_distribution(
+    #         data_dir="./medmnist", 
+    #         file_prefix="pathmnist_exp5_client_", 
+    #         title="PathMNIST (MedMNIST) Distribution", 
+    #         num_classes=9, # PathMNIST 是9类
+    #         save_path="medmnist_dist.png"
+    #     )

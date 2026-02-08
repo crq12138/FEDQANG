@@ -41,18 +41,18 @@ class ExperimentConfig:
     quality_score_init: float = 1.0
 
     # Experiment toggles
-    use_game_process: bool = True
-    lazy_game_once: bool = True
+    use_game_process: bool = False
+    lazy_game_once: bool = False
     send_initial_model: bool = False
     use_noise: bool = False
     zero_grad_when_small: bool = False
-    use_random_strategy: bool = False
+    use_random_strategy: bool = True
 
     # Dataset selection rule
     dataset_dir: str = "mnist"
     use_mnist_unif_threshold: int = 50052
-    mnist_unif_prefix: str = "mnist_exp4_client_"
-    mnist_prefix: str = "mnist_exp4_client_"
+    mnist_unif_prefix: str = "mnist_exp5_client_"
+    mnist_prefix: str = "mnist_exp5_client_"
 
 
 def print_model_parameters(model, num_values=5):

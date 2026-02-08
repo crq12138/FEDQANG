@@ -6,7 +6,7 @@ from torchvision import datasets
 
 # 配置
 # 直接在这里切换数据集: 'pathmnist' / 'mnist' / 'cifar10'
-DATASET_NAME = 'pathmnist'
+DATASET_NAME = 'cifar10'
 
 DATASET_CONFIG = {
     'pathmnist': {
@@ -125,7 +125,7 @@ def generate_exp5():
     print("Ordinary (Medium Data)...")
     for i in range(4, 10):
         # 随机3个类
-        cls = np.random.choice(all_cls, 7, replace=False)
+        cls = np.random.choice(all_cls, 8, replace=False)
         Xi, yi = sample_data(X, y, cls, 3000)
         np.save(f"{ROOT_DIR}/{OUTPUT_PREFIX}_{i}.npy", np.hstack((Xi, yi[:,None])))
 

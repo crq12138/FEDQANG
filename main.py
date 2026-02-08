@@ -25,6 +25,6 @@ if __name__ == '__main__':
     # MNIST_training_DP.run(0)
     # MNIST_Softmax.run(0)
     # MNIST_CNN.run(0)
-    MedMNIST_CNN.run(0)
-    # CIFAR10_CNN.run(0)
+    # MedMNIST_CNN.run(0)
+    CIFAR10_CNN.run(0)
     # print("begin2")

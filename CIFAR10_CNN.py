@@ -42,7 +42,7 @@ class ExperimentConfig:
 
     # Experiment toggles
     use_game_process: bool = True
-    lazy_game_once: bool = True
+    lazy_game_once: bool = False
     send_initial_model: bool = False
     use_noise: bool = False
     zero_grad_when_small: bool = True
@@ -50,8 +50,8 @@ class ExperimentConfig:
 
     # Dataset selection rule
     use_cifar_unif_threshold: int = 50052
-    cifar_unif_prefix: str = "cifar10_exp2_client_"
-    cifar_prefix: str = "cifar10_exp2_client_"
+    cifar_unif_prefix: str = "cifar10_exp5_client_"
+    cifar_prefix: str = "cifar10_exp5_client_"
     dataset_dir: str = "cifar-10-batches-py/cifar10"
 
 

@@ -22,7 +22,7 @@ from MNIST_CNN_path import path as mnist_path
 from CIFAR10_CNN_path import path as cifar10_path
 from MedMNIST_CNN_path import path as medmnist_path
 
-
+path = cifar10_path
 max_message_length = 100 * 1024 * 1024  # 设置为 100 MB，可根据需要调整
 options = [
     ('grpc.max_send_message_length', max_message_length),
@@ -39,7 +39,7 @@ decisions = dict()  # decisions = {0: {"50055": 1000, "50056": 400, ...}, 1: {..
 convergence = dict()
 data_contribution = dict()
 port = str(p2p.PORT)
-filename = medmnist_path + "datasize/traindata_" + port + ".txt"
+filename = path + "datasize/traindata_" + port + ".txt"
 log_data = open(filename, "w")
 data_loop = 0
 
@@ -47,7 +47,7 @@ data_loop = 0
 def read_previous_lambda(iteration):
     if iteration <= 0:
         return 0.0
-    lambda_path = medmnist_path + f"lambda/lambda_{port}.txt"
+    lambda_path = path + f"lambda/lambda_{port}.txt"
     try:
         with open(lambda_path, "r") as lambda_log:
             for line in reversed(lambda_log.readlines()):
@@ -230,7 +230,7 @@ def solve_optimal_data_contribution(
 
     # 若未提供 p_n_dict, 则为所有参与方设定一个默认 p_n=8.0
     if p_n_dict is None:
-        p_n_dict = {pid: 2.0 for pid in all_data_contributions.keys()}
+        p_n_dict = {pid: 3.0 for pid in all_data_contributions.keys()}
 
     # 若未提供 max_data_size_dict, 则为所有参与方设定一个默认最大贡献量5000
     # if max_data_size_dict is None:

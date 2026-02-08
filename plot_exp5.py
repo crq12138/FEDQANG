@@ -8,6 +8,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 # =============== 配置 ===============
+DATASET = "MEDMNIST"  # 可选: MNIST / MEDMNIST / CIFAR10
 OUTPUT_DIR = "./result/exp5"
 
 # 图例显示名称: 文件夹名称
@@ -133,18 +134,6 @@ def setup_tifs_style() -> None:
     })
 
 
-def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="绘制 Exp5 多策略精度收敛对比图")
-    parser.add_argument(
-        "--dataset",
-        type=str,
-        default="MEDMNIST",
-        choices=sorted(DATASET_CONFIG.keys()),
-        help="选择数据集 (MNIST / MEDMNIST / CIFAR10)",
-    )
-    return parser.parse_args()
-
-
 def plot_comparison(dataset: str) -> None:
     config = DATASET_CONFIG[dataset]
     base_dir = config["base_dir"]
@@ -201,5 +190,4 @@ def plot_comparison(dataset: str) -> None:
     print(f"[Done] {dataset} 数据已按 2-round 间隔采样并绘制完成。")
 
 if __name__ == "__main__":
-    args = parse_args()
-    plot_comparison(args.dataset)
+    plot_comparison(DATASET)

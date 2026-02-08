@@ -49,7 +49,9 @@ def parse_quality_file(filepath: str) -> Tuple[np.ndarray, np.ndarray]:
             if len(parts) < 2:
                 continue
             try:
-                round_id = int(parts[0])
+                # Log rounds are 0-based, but round 0 is actually the 1st round.
+                # Shift by +1 so plotted rounds align with true communication rounds.
+                round_id = int(parts[0]) + 1
                 score = float(parts[1])
             except ValueError:
                 continue
@@ -86,6 +88,7 @@ def plot_exp1() -> None:
 
     fig, ax = plt.subplots(figsize=(7.2, 4.8))
 
+    non_iid_labeled = False
     for port in CLIENT_PORTS:
         if port not in curves:
             continue
@@ -101,14 +104,17 @@ def plot_exp1() -> None:
                 zorder=5,
             )
         else:
+            label = "Non-IID Clients (α=0.1)" if not non_iid_labeled else None
             ax.plot(
                 rounds,
                 scores,
                 color="#1f77b4",
                 linewidth=1.2,
-                alpha=0.5,
+                alpha=0.1,
+                label=label,
                 zorder=2,
             )
+            non_iid_labeled = True
 
     ax.set_xlabel("Communication Rounds")
     ax.set_ylabel("Quality Score")

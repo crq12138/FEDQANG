@@ -91,6 +91,11 @@ def calculate_model_size(model):
     return total_size
 
 
+def get_flat_grad_dim(model):
+    """返回模型展平梯度向量长度。"""
+    return sum(p.numel() for p in model.parameters())
+
+
 def get_dataset_filename(port, config: ExperimentConfig):
     client_id = (int(port) - 50051) // 2
     return f"{config.cifar_prefix}{client_id}"
@@ -158,6 +163,7 @@ def run(f):
     D_out = datasets.get_num_classes("cifar")
     model = returnModel(D_in, D_out, config.seed)
     print("length of the model is ", calculate_model_size(model))
+    grad_dim = get_flat_grad_dim(model)
     
     node = p2p.Node()
     
@@ -226,7 +232,8 @@ def run(f):
                 log_loss4.flush()
                 cost_to_log = cost
                 if config.zero_grad_when_small and train_data_size <= 128:
-                    grad = torch.zeros(319242)
+                    # 避免硬编码长度导致不同模型/任务下的梯度维度不一致
+                    grad = torch.zeros(grad_dim)
                     client.datasize = 0
                 else:
                     client.set_train_datasize(train_data_size)
@@ -351,12 +358,32 @@ def average(vecs, datasize_recv):
     将所有向量按照对应的数据大小进行加权平均。
     """
     vecs = [x.cpu().numpy() if isinstance(x, torch.Tensor) else x for x in vecs]
+    if not vecs:
+        raise ValueError("average() 收到空梯度列表。")
+
+    expected_shape = vecs[0].shape
     datasize_recv1 = np.array(datasize_recv, dtype=np.float32)
+
+    if len(datasize_recv1) != len(vecs):
+        raise ValueError(f"datasize_recv 长度({len(datasize_recv1)})与梯度数量({len(vecs)})不一致。")
+
     weighted_sum = np.zeros_like(vecs[0], dtype=np.float32)
+    valid_total_size = 0.0
     for idx, v in enumerate(vecs):
+        if v.shape != expected_shape:
+            print(
+                f"[average] 跳过形状不一致的梯度 idx={idx}: "
+                f"expected={expected_shape}, got={v.shape}, datasize={datasize_recv1[idx]}"
+            )
+            continue
+
         weighted_sum += datasize_recv1[idx] * v
-    total_size = np.sum(datasize_recv1)
-    avg_vec = weighted_sum / total_size
+        valid_total_size += datasize_recv1[idx]
+
+    if valid_total_size <= 0:
+        raise ValueError("average() 未找到可用梯度（可能全部形状不一致或 datasize 为 0）。")
+
+    avg_vec = weighted_sum / valid_total_size
     return avg_vec
 
 

@@ -1,13 +1,13 @@
 import os
 import re
 import glob
+import argparse
 from typing import Dict, List, Tuple
 
 import numpy as np
 import matplotlib.pyplot as plt
 
 # =============== 配置 ===============
-BASE_DIR = "./log/cnn/MEDMNIST/exp_E"
 OUTPUT_DIR = "./result/exp5"
 
 # 图例显示名称: 文件夹名称
@@ -19,7 +19,20 @@ STRATEGIES = {
     "Lazy": "lazy",  # 若不存在会自动跳过并给出提示
 }
 
-FIG_NAME = "medmnist_expE_acc_convergence_comparison"
+DATASET_CONFIG = {
+    "MNIST": {
+        "base_dir": "./log/cnn/MNIST/exp_E",
+        "fig_name": "mnist_expE_acc_convergence_comparison",
+    },
+    "MEDMNIST": {
+        "base_dir": "./log/cnn/MEDMNIST/exp_E",
+        "fig_name": "medmnist_expE_acc_convergence_comparison",
+    },
+    "CIFAR10": {
+        "base_dir": "./log/cnn/CIFAR10/exp_E",
+        "fig_name": "cifar10_expE_acc_convergence_comparison",
+    },
+}
 # ====================================
 
 
@@ -120,7 +133,23 @@ def setup_tifs_style() -> None:
     })
 
 
-def plot_comparison() -> None:
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="绘制 Exp5 多策略精度收敛对比图")
+    parser.add_argument(
+        "--dataset",
+        type=str,
+        default="MEDMNIST",
+        choices=sorted(DATASET_CONFIG.keys()),
+        help="选择数据集 (MNIST / MEDMNIST / CIFAR10)",
+    )
+    return parser.parse_args()
+
+
+def plot_comparison(dataset: str) -> None:
+    config = DATASET_CONFIG[dataset]
+    base_dir = config["base_dir"]
+    fig_name = config["fig_name"]
+
     os.makedirs(OUTPUT_DIR, exist_ok=True)
     setup_tifs_style()
 
@@ -137,7 +166,7 @@ def plot_comparison() -> None:
 
     plotted = 0
     for label, folder in STRATEGIES.items():
-        strategy_dir = os.path.join(BASE_DIR, folder)
+        strategy_dir = os.path.join(base_dir, folder)
         if not os.path.isdir(strategy_dir):
             print(f"[Warning] 策略目录不存在: {strategy_dir}")
             continue
@@ -168,8 +197,9 @@ def plot_comparison() -> None:
     ax.legend(loc="lower right", fontsize=10)
     
     # 存图
-    fig.savefig(os.path.join(OUTPUT_DIR, f"{FIG_NAME}.pdf"))
-    print("[Done] 数据已按 2-round 间隔采样并绘制完成。")
+    fig.savefig(os.path.join(OUTPUT_DIR, f"{fig_name}.pdf"))
+    print(f"[Done] {dataset} 数据已按 2-round 间隔采样并绘制完成。")
 
 if __name__ == "__main__":
-    plot_comparison()
+    args = parse_args()
+    plot_comparison(args.dataset)

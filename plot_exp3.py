@@ -12,6 +12,29 @@ IID_CLIENT_PORT = '50069'
 WINDOW_SIZE = 10  # 每5轮聚合一次
 # =========================================
 
+def setup_tifs_style() -> None:
+    """Set a concise TIFS-like publication style."""
+    plt.rcParams.update(
+        {
+            "font.family": "serif",
+            "font.serif": ["Times New Roman", "Times", "DejaVu Serif"],
+            "mathtext.fontset": "stix",
+            "font.size": 15,
+            "axes.labelsize": 16,
+            "axes.linewidth": 1.0,
+            "axes.grid": False,
+            "legend.frameon": True,
+            "legend.framealpha": 1.0,
+            "legend.fancybox": False,
+            "legend.edgecolor": "black",
+            "xtick.direction": "in",
+            "ytick.direction": "in",
+            "xtick.major.size": 8,
+            "ytick.major.size": 8,
+            "savefig.bbox": "tight",
+        }
+    )
+
 def get_client_total_size(port_str):
     """
     根据端口号加载对应的 .npy 文件并返回数据总样本数。
@@ -95,6 +118,7 @@ def smooth_data_sum(rounds, values, window=5):
 
 def plot_sustainability():
     """图1: 激励持续性 (5轮平滑版)"""
+    setup_tifs_style()
     print(f"正在绘制图1 (每{WINDOW_SIZE}轮平滑)...")
     loss_path = os.path.join(LOG_DIR, 'loss', f'loss_{IID_CLIENT_PORT}.txt')
     qs_path = os.path.join(LOG_DIR, 'quality_score', f'Quality_score_{IID_CLIENT_PORT}.txt')
@@ -139,7 +163,6 @@ def plot_sustainability():
     ax1.plot(r_gain_smooth, gain_smooth, color=color1, linestyle='-', marker='o',
              markersize=4, alpha=0.8, label='Raw Gain (Sum)')
     ax1.tick_params(axis='y', labelcolor=color1)
-    ax1.grid(True, which="both", ls="--", alpha=0.3)
 
     ax2 = ax1.twinx()
     color2 = 'tab:red'
@@ -147,7 +170,9 @@ def plot_sustainability():
     ax2.plot(r_qs_smooth, qs_smooth, color=color2, linewidth=2.5, marker='s',
              markersize=4, label='Incentive (Sum)')
     ax2.tick_params(axis='y', labelcolor=color2)
-
+    lines1, labels1 = ax1.get_legend_handles_labels()
+    lines2, labels2 = ax2.get_legend_handles_labels()
+    ax1.legend(lines1 + lines2, labels1 + labels2, loc='best', fontsize=13)
     # =========================
     # 关键：统一左右 y 轴范围
     # =========================
@@ -167,11 +192,14 @@ def plot_sustainability():
     # y_max = float(np.nanmax([np.nanmax(gain_smooth), np.nanmax(qs_smooth)]))
     # ax1.set_ylim(y_min, y_max)
     # ax2.set_ylim(y_min, y_max)
-
-    plt.title(f'Incentive Sustainability (Smoothed): Raw Gain vs. Incentive (Client {IID_CLIENT_PORT})', fontsize=14)
     plt.tight_layout()
-    plt.savefig(os.path.join(OUTPUT_DIR, 'V-C_Incentive_Sustainability_Smooth.png'), dpi=300)
-    print("图1 (平滑版) 绘制完成。")
+    png_path = os.path.join(OUTPUT_DIR, 'V-C_Incentive_Sustainability_Smooth.png')
+    eps_path = os.path.join(OUTPUT_DIR, 'V-C_Incentive_Sustainability_Smooth.eps')
+    plt.savefig(png_path, dpi=300)
+    plt.savefig(eps_path, format='eps')
+    print(f"图1 (平滑版) 绘制完成。已保存: {png_path}")
+    print(f"图1 (平滑版) 绘制完成。已保存: {eps_path}")
+
 
 
 def plot_data_contribution_ratio_avg():
@@ -183,7 +211,7 @@ def plot_data_contribution_ratio_avg():
     3. 保证圆点在视觉上绝对均匀分布。
     """
     print("正在绘制图2: 数据贡献比例对比 (重采样插值版)...")
-    
+    setup_tifs_style()
     datasize_dir = os.path.join(LOG_DIR, 'datasize')
     log_files = glob.glob(os.path.join(datasize_dir, 'traindata_*.txt'))
     
@@ -247,33 +275,34 @@ def plot_data_contribution_ratio_avg():
     
     # 绘制 IID (高质量)
     # 因为 X 轴是 grid_x (均匀的)，所以点一定是均匀的
-    ax.plot(grid_x, iid_ratio_resampled, label=f'High Quality Client (IID)', 
+    ax.plot(grid_x, iid_ratio_resampled, label=f'IID Participant', 
             color='tab:green', linewidth=2.0, marker='o', markersize=5)
     
     # 绘制 Non-IID (低质量)
-    ax.plot(grid_x, non_iid_ratio_resampled, label=f'Low Quality Clients (Avg Non-IID)', 
+    ax.plot(grid_x, non_iid_ratio_resampled, label=f'Non-IID Participants (α=0.1)', 
             color='tab:orange', linewidth=2.0, linestyle='-', marker='x', markersize=5)
     
     # 基准线
     ax.axhline(y=0.5, color='red', linestyle='--', linewidth=1.5, label='Initial Contribution (0.5)')
     
-    ax.set_xlabel('Communication Rounds', fontsize=12)
-    ax.set_ylabel('Data Contribution Ratio (s_i / S_i)', fontsize=12)
+    ax.set_xlabel('Communication Rounds', fontsize=24)
+    ax.set_ylabel('Data Contribution Ratio (s_i / S_i)', fontsize=24)
     ax.set_xlim(0, 100) 
     ax.set_ylim(-0.05, 1.05) 
-    ax.set_title('Rational Strategy: Contribution Ratio vs. Rounds', fontsize=14)
-    ax.legend(fontsize=11, loc='best')
-    ax.grid(True, linestyle='--', alpha=0.5)
-    
+    ax.legend(fontsize=20, loc='upper right', bbox_to_anchor=(0.995, 0.93))
+    ax.tick_params(axis='both', labelsize=24)
     plt.tight_layout()
-    save_path = os.path.join(OUTPUT_DIR, 'V-C_Data_Contribution_Ratio_Avg.png')
-    plt.savefig(save_path, dpi=300)
-    print(f"图2绘制完成 (插值修正版)，已保存: {save_path}")
+    png_path = os.path.join(OUTPUT_DIR, 'V-C_Data_Contribution_Ratio_Avg.png')
+    eps_path = os.path.join(OUTPUT_DIR, 'V-C_Data_Contribution_Ratio_Avg.eps')
+    plt.savefig(png_path, dpi=300)
+    plt.savefig(eps_path, format='eps')
+    print(f"图2绘制完成 (插值修正版)，已保存: {png_path}")
+    print(f"图2绘制完成 (插值修正版)，已保存: {eps_path}")
 
 if __name__ == "__main__":
     if not os.path.exists(OUTPUT_DIR):
         os.makedirs(OUTPUT_DIR)
         
-    plot_sustainability()
-    # plot_data_contribution_ratio_avg()
+    # plot_sustainability()
+    plot_data_contribution_ratio_avg()
     print("\n所有图表绘制完成！")

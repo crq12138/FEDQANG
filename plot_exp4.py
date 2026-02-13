@@ -18,6 +18,31 @@ CLIENT_FREERIDER = '50069'
 CLIENTS_ORDINARY = [str(port) for port in range(50053, 50069, 2)] 
 # ===========================================
 
+def setup_tifs_style() -> None:
+    """Set a concise TIFS-like publication style."""
+    plt.rcParams.update(
+        {
+            "font.family": "serif",
+            "font.serif": ["Times New Roman", "Times", "DejaVu Serif"],
+            "mathtext.fontset": "stix",
+            "font.size": 20,
+            "axes.labelsize": 22,
+            "axes.linewidth": 1.0,
+            "axes.grid": False,
+            "legend.frameon": True,
+            "legend.framealpha": 1.0,
+            "legend.fancybox": False,
+            "legend.edgecolor": "black",
+            "xtick.direction": "in",
+            "ytick.direction": "in",
+            "xtick.major.size": 8,
+            "ytick.major.size": 8,
+            "xtick.labelsize": 22,
+            "ytick.labelsize": 22,
+            "savefig.bbox": "tight",
+        }
+    )
+
 # 定义一个强制使用特定量级 (如 10^-2) 的 Formatter
 class FixedOrderFormatter(ticker.ScalarFormatter):
     def __init__(self, order=0, useMathText=True):
@@ -80,7 +105,7 @@ def get_cumulative_curve(port, log_type='transfer'):
 
 def plot_final_v2():
     print("正在绘制 V-D 最终修正版 v2: 四条曲线对比...")
-    
+    setup_tifs_style()
     # 1. 获取天才数据 (Transfer & Cost)
     res_g_trans = get_cumulative_curve(CLIENT_GENIUS, 'transfer')
     res_g_cost = get_cumulative_curve(CLIENT_GENIUS, 'cost')
@@ -113,12 +138,6 @@ def plot_final_v2():
         print("Warning: 未找到普通节点数据")
 
     # ================= 绘图 =================
-    # 使用 Times New Roman 风格字体 (接近论文)
-    plt.rcParams.update({
-        'font.family': 'serif',
-        'mathtext.fontset': 'stix',
-        'font.size': 12
-    })
     
     fig, ax = plt.subplots(figsize=(10, 6.5))
     
@@ -128,19 +147,19 @@ def plot_final_v2():
     
     # 1. Genius Transfer (Income) - 绿色星号
     ax.plot(x_grid, y_g_trans, color='#2ca02c', linewidth=2.5, linestyle='-', 
-            marker='*', markersize=9, markevery=mk_interval, label='Genius: Cumulative Transfer')
+            marker='*', markersize=9, markevery=mk_interval, label='Genius Participants: Transfer')
     
     # 2. Ordinary Average (Baseline) - 橙色圆点
     ax.plot(x_grid, y_ord_avg, color='#ff7f0e', linewidth=2.5, linestyle='-', 
-            marker='o', markersize=6, markevery=mk_interval, label='Ordinary (Avg): Cumulative Transfer')
+            marker='o', markersize=6, markevery=mk_interval, label='Ordinary Participants: Transfer')
     
     # 3. Genius Cost (Cost) - 蓝色方块 (虚线)
     ax.plot(x_grid, y_g_cost, color='#1f77b4', linewidth=2.0, linestyle='--', 
-            marker='s', markersize=6, markevery=mk_interval, alpha=0.9, label='Genius: Cumulative Cost')
+            marker='s', markersize=6, markevery=mk_interval, alpha=0.9, label='Genius Participants: Cost')
 
     # 4. Free-rider Transfer (Penalty) - 红色叉号
     ax.plot(x_grid, y_f_trans, color='#d62728', linewidth=2.5, linestyle='-', 
-            marker='x', markersize=7, markevery=mk_interval, label='Free-rider: Cumulative Transfer')
+            marker='x', markersize=7, markevery=mk_interval, label='Free-rider Participants: Transfer')
     
     # 0 轴基准线
     ax.axhline(y=0, color='black', linestyle='-', linewidth=1.0, alpha=0.4)
@@ -152,10 +171,10 @@ def plot_final_v2():
     # === 修改 2: X 轴范围往前拓宽 ===
     # 设为 105 或 110，给右侧留出空间
     ax.set_xlim(0, 105)
-    ax.set_xlabel('Communication Rounds', fontsize=14, fontweight='bold')
+    ax.set_xlabel('Communication Rounds', fontsize=22, fontweight='bold')
     
     # Y 轴标签
-    ax.set_ylabel('Cumulative Value', fontsize=14, fontweight='bold')
+    ax.set_ylabel('Cumulative Value', fontsize=22, fontweight='bold')
     
     # === 修改 3: 强制 Y 轴使用 10^-2 次方 ===
     # 实例化我们要强制 -2 次方的 Formatter
@@ -166,24 +185,24 @@ def plot_final_v2():
     ax.yaxis.set_major_formatter(formatter)
     
     # 调整字体大小
-    ax.yaxis.get_offset_text().set_fontsize(12)
-    ax.tick_params(axis='both', which='major', labelsize=12)
+    ax.yaxis.get_offset_text().set_fontsize(22)
+    ax.tick_params(axis='both', which='major', labelsize=22)
     
     # 图例
-    ax.legend(fontsize=11, loc='upper left', frameon=True, fancybox=True, shadow=False).set_zorder(10)
-    
-    # 网格
-    ax.grid(True, linestyle='--', alpha=0.5)
+    ax.legend(fontsize=16, loc='upper left').set_zorder(10)
     
     plt.tight_layout()
     
-    save_path = os.path.join(OUTPUT_DIR, 'V-D_Cumulative_Transfer_Final_v3.png')
-    plt.savefig(save_path, dpi=300)
-    print(f"图表已保存 (v3修正版): {save_path}")
+    png_path = os.path.join(OUTPUT_DIR, 'V-D_Cumulative_Transfer_Final_v3.png')
+    eps_path = os.path.join(OUTPUT_DIR, 'V-D_Cumulative_Transfer_Final_v3.eps')
+    plt.savefig(png_path, dpi=300)
+    plt.savefig(eps_path, format='eps')
+    print(f"图表已保存 (v3修正版): {png_path}")
+    print(f"图表已保存 (v3修正版): {eps_path}")
 
 def plot_payoff_comparison():
     """对比 FEDQANG 与 FedAvg 下天才/混子节点的 pay_off。"""
-
+    setup_tifs_style()
     ordinary_fedqang = [
         compute_pay_off(port, LOG_DIR_CLASS, False) for port in CLIENTS_ORDINARY
     ]
@@ -206,12 +225,6 @@ def plot_payoff_comparison():
     fedqang_vals = [payoff_fedqang[label] for label in labels]
     fedavg_vals = [payoff_fedavg[label] for label in labels]
 
-    plt.rcParams.update({
-        'font.family': 'serif',
-        'mathtext.fontset': 'stix',
-        'font.size': 12
-    })
-
     x = np.arange(len(labels))
     width = 0.32
 
@@ -224,16 +237,18 @@ def plot_payoff_comparison():
     ax.set_ylabel('Payoff', fontsize=13, fontweight='bold')
     ax.set_xticks(x)
     ax.set_xticklabels(labels, fontsize=12, fontweight='bold')
-    ax.legend(fontsize=11, loc='best', frameon=True, fancybox=True)
-    ax.grid(axis='y', linestyle='--', alpha=0.5)
+    ax.legend(fontsize=13, loc='best')
 
     plt.tight_layout()
-    save_path = os.path.join(OUTPUT_DIR, 'payoff_comparison_fedqang_vs_fedavg.png')
-    plt.savefig(save_path, dpi=300)
-    print(f"Payoff 对比图已保存: {save_path}")
+    png_path = os.path.join(OUTPUT_DIR, 'payoff_comparison_fedqang_vs_fedavg.png')
+    eps_path = os.path.join(OUTPUT_DIR, 'payoff_comparison_fedqang_vs_fedavg.eps')
+    plt.savefig(png_path, dpi=300)
+    plt.savefig(eps_path, format='eps')
+    print(f"Payoff 对比图已保存: {png_path}")
+    print(f"Payoff 对比图已保存: {eps_path}")
 
 if __name__ == "__main__":
     if not os.path.exists(OUTPUT_DIR):
         os.makedirs(OUTPUT_DIR)
-    # plot_final_v2()
-    plot_payoff_comparison()
+    plot_final_v2()
+    # plot_payoff_comparison()

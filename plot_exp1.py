@@ -19,19 +19,18 @@ def setup_tifs_style() -> None:
             "font.family": "serif",
             "font.serif": ["Times New Roman", "Times", "DejaVu Serif"],
             "mathtext.fontset": "stix",
-            "font.size": 11,
-            "axes.labelsize": 12,
-            "axes.titlesize": 13,
+            "font.size": 15,
+            "axes.labelsize": 16,
             "axes.linewidth": 1.0,
-            "axes.grid": True,
-            "grid.alpha": 0.2,
-            "grid.linewidth": 0.5,
-            "grid.linestyle": "-",
+            "axes.grid": False,
             "legend.frameon": True,
-            "legend.framealpha": 0.95,
+            "legend.framealpha": 1.0,
             "legend.fancybox": False,
+            "legend.edgecolor": "black",
             "xtick.direction": "in",
             "ytick.direction": "in",
+            "xtick.major.size": 8,
+            "ytick.major.size": 8,
             "savefig.bbox": "tight",
         }
     )
@@ -100,11 +99,11 @@ def plot_exp1() -> None:
                 scores,
                 color="#d62728",
                 linewidth=2.3,
-                label=f"Client {port} (Best)",
+                label=f"IID Participant",
                 zorder=5,
             )
         else:
-            label = "Non-IID Clients (α=0.1)" if not non_iid_labeled else None
+            label = "Non-IID Participants (α=0.1)" if not non_iid_labeled else None
             ax.plot(
                 rounds,
                 scores,
@@ -118,17 +117,16 @@ def plot_exp1() -> None:
 
     ax.set_xlabel("Communication Rounds")
     ax.set_ylabel("Quality Score")
-    ax.set_title("MEDMNIST Exp-A: Quality Score Dynamics")
-    ax.legend(loc="best", fontsize=10)
+    ax.legend(loc="best", fontsize=13)
 
     png_path = os.path.join(OUTPUT_DIR, f"{OUTPUT_NAME}.png")
-    pdf_path = os.path.join(OUTPUT_DIR, f"{OUTPUT_NAME}.pdf")
+    eps_path = os.path.join(OUTPUT_DIR, f"{OUTPUT_NAME}.eps")
     fig.savefig(png_path, dpi=300)
-    fig.savefig(pdf_path)
+    fig.savefig(eps_path, format="eps")
     plt.close(fig)
 
     print(f"[Done] Saved figure to: {png_path}")
-    print(f"[Done] Saved figure to: {pdf_path}")
+    print(f"[Done] Saved figure to: {eps_path}")
 
 
 if __name__ == "__main__":

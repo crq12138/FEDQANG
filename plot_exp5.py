@@ -8,7 +8,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 # =============== 配置 ===============
-DATASET = "MEDMNIST"  # 可选: MNIST / MEDMNIST / CIFAR10
+DATASET = "MNIST"  # 可选: MNIST / MEDMNIST / CIFAR10
 OUTPUT_DIR = "./result/exp5"
 
 # 图例显示名称: 文件夹名称
@@ -24,14 +24,17 @@ DATASET_CONFIG = {
     "MNIST": {
         "base_dir": "./log/cnn/MNIST/exp_E",
         "fig_name": "mnist_expE_acc_convergence_comparison",
+        "y_lim": (0.85, 1.005),
     },
     "MEDMNIST": {
         "base_dir": "./log/cnn/MEDMNIST/exp_E",
         "fig_name": "medmnist_expE_acc_convergence_comparison",
+        "y_lim": (0.0, 1.02),
     },
     "CIFAR10": {
         "base_dir": "./log/cnn/CIFAR10/exp_E",
         "fig_name": "cifar10_expE_acc_convergence_comparison",
+        "y_lim": (0.08, 0.75),
     },
 }
 # ====================================
@@ -138,6 +141,7 @@ def plot_comparison(dataset: str) -> None:
     config = DATASET_CONFIG[dataset]
     base_dir = config["base_dir"]
     fig_name = config["fig_name"]
+    y_lim = config.get("y_lim", (0.0, 1.02))
 
     os.makedirs(OUTPUT_DIR, exist_ok=True)
     setup_tifs_style()
@@ -165,6 +169,11 @@ def plot_comparison(dataset: str) -> None:
             continue
 
         style = line_styles.get(label, {"linestyle": "-"})
+        marker_step = max(1, len(rounds) // 10)
+        marker_idx = list(range(0, len(rounds), marker_step))
+        if marker_idx[-1] != len(rounds) - 1:
+            marker_idx.append(len(rounds) - 1)
+
         ax.plot(
             rounds,
             mean_acc,
@@ -172,7 +181,7 @@ def plot_comparison(dataset: str) -> None:
             linewidth=1.8, # 稍微调细一点以增加学术精致感
             markersize=5.0,
             # 调整打点频率，避免下采样后 Marker 依然过密
-            markevery=max(1, len(rounds) // 10),
+            markevery=marker_idx,
             **style,
         )
         ax.fill_between(rounds, mean_acc - std_acc, mean_acc + std_acc,
@@ -182,7 +191,7 @@ def plot_comparison(dataset: str) -> None:
     # (后续保存逻辑保持不变...)
     ax.set_xlabel("Communication Rounds", fontsize=12, fontweight="bold")
     ax.set_ylabel("Accuracy", fontsize=12, fontweight="bold")
-    ax.set_ylim(0.0, 1.02)
+    ax.set_ylim(*y_lim)
     ax.legend(loc="lower right", fontsize=10)
     
     # 存图

@@ -9,7 +9,7 @@ LOG_DIR = "./log/cnn/MEDMNIST/exp_A/class/quality_score"
 OUTPUT_DIR = "./result/exp1"
 OUTPUT_NAME = "medmnist_expA_quality_score_comparison"
 CLIENT_PORTS = [str(p) for p in range(50051, 50070)]
-BEST_CLIENT = "50069"
+BEST_CLIENT = "50051"
 
 
 def setup_tifs_style() -> None:

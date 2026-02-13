@@ -41,12 +41,12 @@ class ExperimentConfig:
     quality_score_init: float = 1.0
 
     # Experiment toggles
-    use_game_process: bool = True
+    use_game_process: bool = False
     lazy_game_once: bool = False
     send_initial_model: bool = False
     use_noise: bool = False
     zero_grad_when_small: bool = True
-    use_random_strategy: bool = False
+    use_random_strategy: bool = True
 
     # Dataset selection rule
     use_cifar_unif_threshold: int = 50052

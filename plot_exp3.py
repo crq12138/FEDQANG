@@ -9,7 +9,7 @@ LOG_DIR = './log/cnn/MEDMNIST/exp_C/class'
 OUTPUT_DIR = './result/exp3/'
 DATA_DIR = './medmnist' 
 IID_CLIENT_PORT = '50069'      
-WINDOW_SIZE = 5  # 每5轮聚合一次
+WINDOW_SIZE = 10  # 每5轮聚合一次
 # =========================================
 
 def get_client_total_size(port_str):
@@ -275,5 +275,5 @@ if __name__ == "__main__":
         os.makedirs(OUTPUT_DIR)
         
     plot_sustainability()
-    plot_data_contribution_ratio_avg()
+    # plot_data_contribution_ratio_avg()
     print("\n所有图表绘制完成！")

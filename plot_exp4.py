@@ -9,6 +9,7 @@ from pay_off_compute import compute_pay_off
 # ================= 配置区域 =================
 LOG_DIR_CLASS = './log/cnn/MEDMNIST/exp_D/class'  # Transfer 日志路径
 LOG_DIR_FEDAVG = './log/cnn/MEDMNIST/exp_D/fedavg'
+LOG_DIR_EXP_E = './log/cnn/MEDMNIST/exp_E'
 OUTPUT_DIR = './result/exp4/'
 
 # 端口定义
@@ -171,10 +172,10 @@ def plot_final_v2():
     # === 修改 2: X 轴范围往前拓宽 ===
     # 设为 105 或 110，给右侧留出空间
     ax.set_xlim(0, 105)
-    ax.set_xlabel('Communication Rounds', fontsize=22, fontweight='bold')
+    ax.set_xlabel('Communication Rounds', fontsize=24)
     
     # Y 轴标签
-    ax.set_ylabel('Cumulative Value', fontsize=22, fontweight='bold')
+    ax.set_ylabel('Cumulative Value', fontsize=24)
     
     # === 修改 3: 强制 Y 轴使用 10^-2 次方 ===
     # 实例化我们要强制 -2 次方的 Formatter
@@ -189,7 +190,7 @@ def plot_final_v2():
     ax.tick_params(axis='both', which='major', labelsize=22)
     
     # 图例
-    ax.legend(fontsize=16, loc='upper left').set_zorder(10)
+    ax.legend(fontsize=18, loc='upper left').set_zorder(10)
     
     plt.tight_layout()
     
@@ -201,47 +202,62 @@ def plot_final_v2():
     print(f"图表已保存 (v3修正版): {eps_path}")
 
 def plot_payoff_comparison():
-    """对比 FEDQANG 与 FedAvg 下天才/混子节点的 pay_off。"""
+    """对比 exp_E 下不同方案的总 pay-off。"""
     setup_tifs_style()
-    ordinary_fedqang = [
-        compute_pay_off(port, LOG_DIR_CLASS, False) for port in CLIENTS_ORDINARY
-    ]
-    ordinary_fedavg = [
-        compute_pay_off(port, LOG_DIR_FEDAVG, False) for port in CLIENTS_ORDINARY
-    ]
+    scheme_dirs = ["class", "greedy", "random", "pure", "lazy"]
+    total_payoffs = {}
 
-    payoff_fedqang = {
-        "Genius": compute_pay_off(CLIENT_GENIUS, LOG_DIR_CLASS, False),
-        "Ordinary": float(np.mean(ordinary_fedqang)) if ordinary_fedqang else 0.0,
-        "Idiot": compute_pay_off(CLIENT_FREERIDER, LOG_DIR_CLASS, False),
-    }
-    payoff_fedavg = {
-        "Genius": compute_pay_off(CLIENT_GENIUS, LOG_DIR_FEDAVG, False),
-        "Ordinary": float(np.mean(ordinary_fedavg)) if ordinary_fedavg else 0.0,
-        "Idiot": compute_pay_off(CLIENT_FREERIDER, LOG_DIR_FEDAVG, False),
-    }
+    for scheme in scheme_dirs:
+        base_dir = os.path.join(LOG_DIR_EXP_E, scheme)
+        payoff_files = glob.glob(os.path.join(base_dir, "pay_off", "pay_off*.txt"))
+        if not payoff_files:
+            print(f"Warning: 未找到 {scheme} 的 pay_off 文件")
+            total_payoffs[scheme] = 0.0
+            continue
 
-    labels = ["Genius", "Ordinary", "Idiot"]
-    fedqang_vals = [payoff_fedqang[label] for label in labels]
-    fedavg_vals = [payoff_fedavg[label] for label in labels]
+        participant_ids = []
+        for path in payoff_files:
+            match = re.search(r"pay_off_?(\d+)\.txt$", os.path.basename(path))
+            if match:
+                participant_ids.append(match.group(1))
 
-    x = np.arange(len(labels))
-    width = 0.32
+        total_payoffs[scheme] = sum(
+            compute_pay_off(participant_id, base_dir, False)
+            for participant_id in participant_ids
+        )
 
-    fig, ax = plt.subplots(figsize=(7.2, 4.8))
-    ax.bar(x - width / 2, fedqang_vals, width, label='FEDQANG',
-           color='#1f77b4', edgecolor='black', hatch='//')
-    ax.bar(x + width / 2, fedavg_vals, width, label='FedAvg',
-           color='#ff7f0e', edgecolor='black', hatch='\\\\')
+    # labels = [scheme.upper() for scheme in scheme_dirs]
+    labels = ["Our Scheme", "Greedy(Baseline)", "Lazy", "Pure", "Random"]
+    values = [total_payoffs[scheme] for scheme in scheme_dirs]
 
-    ax.set_ylabel('Payoff', fontsize=13, fontweight='bold')
-    ax.set_xticks(x)
-    ax.set_xticklabels(labels, fontsize=12, fontweight='bold')
-    ax.legend(fontsize=13, loc='best')
+    fig, ax = plt.subplots(figsize=(8.4, 5.2))
+    bars = ax.bar(
+        labels,
+        values,
+        color=['#1f77b4', '#2ca02c', '#ff7f0e', '#9467bd', '#8c564b'],
+        edgecolor='black',
+        linewidth=1.0,
+    )
+
+    ax.set_ylabel('Total Payoff', fontsize=18)
+    ax.set_xlabel('Scheme', fontsize=18)
+    ax.tick_params(axis='x', labelsize=16)
+    ax.tick_params(axis='y', labelsize=16)
+    ax.grid(axis='y', linestyle='--', alpha=0.35)
+
+    for bar, val in zip(bars, values):
+        ax.text(
+            bar.get_x() + bar.get_width() / 2,
+            val,
+            f'{val:.2f}',
+            ha='center',
+            va='bottom',
+            fontsize=16,
+        )
 
     plt.tight_layout()
-    png_path = os.path.join(OUTPUT_DIR, 'payoff_comparison_fedqang_vs_fedavg.png')
-    eps_path = os.path.join(OUTPUT_DIR, 'payoff_comparison_fedqang_vs_fedavg.eps')
+    png_path = os.path.join(OUTPUT_DIR, 'payoff_comparison_expE_total.png')
+    eps_path = os.path.join(OUTPUT_DIR, 'payoff_comparison_expE_total.eps')
     plt.savefig(png_path, dpi=300)
     plt.savefig(eps_path, format='eps')
     print(f"Payoff 对比图已保存: {png_path}")
@@ -250,5 +266,5 @@ def plot_payoff_comparison():
 if __name__ == "__main__":
     if not os.path.exists(OUTPUT_DIR):
         os.makedirs(OUTPUT_DIR)
-    plot_final_v2()
-    # plot_payoff_comparison()
+    # plot_final_v2()
+    plot_payoff_comparison()

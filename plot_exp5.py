@@ -189,8 +189,8 @@ def plot_comparison(dataset: str) -> None:
         plotted += 1
 
     # (后续保存逻辑保持不变...)
-    ax.set_xlabel("Communication Rounds", fontsize=12, fontweight="bold")
-    ax.set_ylabel("Accuracy", fontsize=12, fontweight="bold")
+    ax.set_xlabel("Communication Rounds", fontsize=12)
+    ax.set_ylabel("Accuracy", fontsize=12)
     ax.set_ylim(*y_lim)
     ax.legend(loc="lower right", fontsize=10)
     

@@ -22,7 +22,7 @@ from MNIST_CNN_path import path as mnist_path
 from CIFAR10_CNN_path import path as cifar10_path
 from MedMNIST_CNN_path import path as medmnist_path
 
-path = cifar10_path
+path = medmnist_path
 max_message_length = 100 * 1024 * 1024  # 设置为 100 MB，可根据需要调整
 options = [
     ('grpc.max_send_message_length', max_message_length),
@@ -230,7 +230,7 @@ def solve_optimal_data_contribution(
 
     # 若未提供 p_n_dict, 则为所有参与方设定一个默认 p_n=8.0
     if p_n_dict is None:
-        p_n_dict = {pid: 3.0 for pid in all_data_contributions.keys()}
+        p_n_dict = {pid: 1.0 for pid in all_data_contributions.keys()}
 
     # 若未提供 max_data_size_dict, 则为所有参与方设定一个默认最大贡献量5000
     # if max_data_size_dict is None:

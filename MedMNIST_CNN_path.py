@@ -1,2 +1,2 @@
 
-path = "./log/cnn/MEDMNIST/exp_E/lazy/" 
+path = "./log/cnn/MEDMNIST/exp_A/class1/" 

@@ -34,7 +34,7 @@ class ExperimentConfig:
     wait_for_network_s: float = 5.0
     quality_score_init: float = 1.0
     use_game_process: bool = True
-    lazy_game_once: bool = True
+    lazy_game_once: bool = False
     send_initial_model: bool = False
     use_noise: bool = False
     zero_grad_when_small: bool = True
@@ -43,8 +43,8 @@ class ExperimentConfig:
     # Dataset selection rule
     dataset_dir: str = "medmnist"
     use_medmnist_unif_threshold: int = 50052
-    medmnist_unif_prefix: str = "pathmnist_exp5_client_"
-    medmnist_prefix: str = "pathmnist_exp5_client_"
+    medmnist_unif_prefix: str = "pathmnist_exp1_client_"
+    medmnist_prefix: str = "pathmnist_exp1_client_"
 
 def set_seed(seed: int):
     random.seed(seed)

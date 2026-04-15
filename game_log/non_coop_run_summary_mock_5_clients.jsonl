@@ -1,0 +1,1 @@
+{"run_timestamp_utc": "2026-04-15T13:20:26.592162+00:00", "quality_dir": "mock_data/non_coop_quality_scenarios/mock_5_clients", "iter_count": 1, "total_rounds": 2000, "total_duration_sec": "2.608079", "avg_rounds_per_game": "2000.000000", "avg_duration_sec_per_game": "2.608079", "all_converged": 0}

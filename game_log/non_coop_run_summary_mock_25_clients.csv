@@ -1,0 +1,2 @@
+run_timestamp_utc,quality_dir,iter_count,total_rounds,total_duration_sec,avg_rounds_per_game,avg_duration_sec_per_game,all_converged
+2026-04-15T13:21:27.079013+00:00,mock_data/non_coop_quality_scenarios/mock_25_clients,1,2000,22.059043,2000.000000,22.059043,0

@@ -12,6 +12,7 @@ import csv
 import json
 import math
 import time
+import re
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -209,6 +210,53 @@ def load_quality_scores(quality_dir: Path) -> Dict[str, Dict[int, float]]:
     return result
 
 
+def load_quality_scores_from_files(file_paths: List[Path]) -> Dict[str, Dict[int, float]]:
+    result = {}
+    for file_path in sorted(file_paths):
+        player_id = file_path.stem.split("_")[-1]
+        result[player_id] = parse_quality_file(file_path)
+    if not result:
+        raise FileNotFoundError("未找到任何 Quality_score_*.txt 文件")
+    return result
+
+
+def evenly_split_total_datasize(total: int, count: int) -> Dict[int, int]:
+    base = total // count
+    remainder = total % count
+    return {idx: (base + 1 if idx < remainder else base) for idx in range(count)}
+
+
+def pick_quality_files_for_player_count(mock_base_dir: Path, player_count: int) -> List[Path]:
+    exact_dir = mock_base_dir / f"mock_{player_count}_clients"
+    if exact_dir.exists():
+        files = sorted(exact_dir.glob("Quality_score_*.txt"))
+        if len(files) < player_count:
+            raise RuntimeError(f"{exact_dir} 中质量分数文件不足 {player_count} 个")
+        return files[:player_count]
+
+    scenario_dirs = []
+    for candidate in sorted(mock_base_dir.glob("mock_*_clients")):
+        m = re.match(r"mock_(\d+)_clients", candidate.name)
+        if not m:
+            continue
+        candidate_count = int(m.group(1))
+        if candidate_count >= player_count:
+            scenario_dirs.append((candidate_count, candidate))
+    if not scenario_dirs:
+        raise FileNotFoundError(
+            f"在 {mock_base_dir} 下未找到可用于 {player_count} 参与方的 mock 场景目录"
+        )
+    chosen_count, chosen_dir = scenario_dirs[0]
+    files = sorted(chosen_dir.glob("Quality_score_*.txt"))
+    if len(files) < player_count:
+        raise RuntimeError(f"{chosen_dir} 中质量分数文件不足 {player_count} 个")
+    print(
+        f"[提示] 未找到 mock_{player_count}_clients，使用 {chosen_dir.name} 的前 {player_count} "
+        f"个参与方文件进行仿真（源场景参与方数={chosen_count}）"
+    )
+    return files[:player_count]
+
+
 def collect_iteration_indices(all_scores: Dict[str, Dict[int, float]]) -> List[int]:
     common = None
     for per_player in all_scores.values():
@@ -224,9 +272,12 @@ def run_non_cooperative_game(
     convergence_tol: int,
     max_rounds: int,
     k_loss: float,
+    per_player_caps: Dict[str, int] = None,
 ) -> Tuple[bool, int, float, Dict[str, int], Dict[str, float]]:
     players = sorted(quality_scores.keys())
-    datasizes = {pid: max_data_size // 2 for pid in players}
+    if per_player_caps is None:
+        per_player_caps = {pid: max_data_size for pid in players}
+    datasizes = {pid: per_player_caps[pid] // 2 for pid in players}
     payoffs = {pid: 0.0 for pid in players}
 
     start = time.perf_counter()
@@ -246,7 +297,7 @@ def run_non_cooperative_game(
                 p_n_dict=None,
                 k=k_loss,
                 T=60.0,
-                max_data_size=max_data_size,
+                max_data_size=per_player_caps[pid],
                 lambda_prev=0.0,
             )
             step = optimal_x - datasizes[pid]
@@ -315,9 +366,25 @@ def append_run_summary(log_file: Path, row: dict) -> None:
 def main():
     parser = argparse.ArgumentParser(description="非合作博弈仿真实验")
     parser.add_argument(
+        "--mock-base-dir",
+        default="mock_data/non_coop_quality_scenarios",
+        help="mock 场景根目录",
+    )
+    parser.add_argument(
+        "--participant-counts",
+        default="5,10,15,20",
+        help="需要仿真的参与方数量列表（逗号分隔）",
+    )
+    parser.add_argument(
+        "--total-datasize",
+        type=int,
+        default=50000,
+        help="每个参与方规模场景下的数据总量（均分给参与方）",
+    )
+    parser.add_argument(
         "--quality-dir",
         default="log/cnn/CIFAR10/exp_E/class/quality_score",
-        help="质量分数文件目录",
+        help="单场景质量分数文件目录（仅在 participant-counts 为空时启用）",
     )
     parser.add_argument("--log-dir", default="./game_log", help="实验日志输出目录")
     parser.add_argument("--max-data-size", type=int, default=5000, help="单参与方最大数据量")
@@ -334,23 +401,25 @@ def main():
     args = parser.parse_args()
 
     quality_dir = Path(args.quality_dir)
+    mock_base_dir = Path(args.mock_base_dir)
     log_dir = Path(args.log_dir)
     ensure_game_log_dir(log_dir)
 
-    all_scores = load_quality_scores(quality_dir)
-    available_iters = collect_iteration_indices(all_scores)
-    if not available_iters:
-        raise RuntimeError("各参与方质量分数文件没有共同迭代编号，无法开展博弈")
-
-    if args.iter_idx is None:
-        target_iters = available_iters
+    player_counts = [
+        int(x.strip()) for x in args.participant_counts.split(",") if x.strip()
+    ]
+    if not player_counts:
+        all_scores = load_quality_scores(quality_dir)
+        available_iters = collect_iteration_indices(all_scores)
+        if not available_iters:
+            raise RuntimeError("各参与方质量分数文件没有共同迭代编号，无法开展博弈")
+        scenarios = [("single_quality_dir", all_scores)]
     else:
-        if args.iter_idx not in available_iters:
-            raise ValueError(
-                f"指定 iter_idx={args.iter_idx} 不在共同迭代集合中，可选范围: "
-                f"{available_iters[0]}..{available_iters[-1]}"
-            )
-        target_iters = [args.iter_idx]
+        scenarios = []
+        for player_count in player_counts:
+            selected_files = pick_quality_files_for_player_count(mock_base_dir, player_count)
+            all_scores = load_quality_scores_from_files(selected_files)
+            scenarios.append((f"mock_{player_count}_clients", all_scores))
 
     csv_log_file = log_dir / "non_coop_game_metrics.csv"
     jsonl_log_file = log_dir / "non_coop_game_metrics.jsonl"
@@ -361,53 +430,75 @@ def main():
     total_duration = 0.0
     converged_games = 0
 
-    for game_id, iter_idx in enumerate(target_iters, start=1):
-        quality_scores = {
-            pid: per_player_scores[iter_idx] for pid, per_player_scores in all_scores.items()
-        }
-        converged, rounds, duration, final_datasizes, final_payoffs = run_non_cooperative_game(
-            quality_scores=quality_scores,
-            max_data_size=args.max_data_size,
-            step_long=args.step_long,
-            convergence_tol=args.convergence_tol,
-            max_rounds=args.max_rounds,
-            k_loss=args.k_loss,
-        )
+    game_id = 0
+    for scenario_name, all_scores in scenarios:
+        available_iters = collect_iteration_indices(all_scores)
+        if not available_iters:
+            raise RuntimeError(f"场景 {scenario_name} 无共同迭代编号，无法开展博弈")
+        if args.iter_idx is None:
+            target_iters = available_iters
+        else:
+            if args.iter_idx not in available_iters:
+                raise ValueError(
+                    f"场景 {scenario_name} 中 iter_idx={args.iter_idx} 不可用，可选范围: "
+                    f"{available_iters[0]}..{available_iters[-1]}"
+                )
+            target_iters = [args.iter_idx]
 
-        record = {
-            "game_id": game_id,
-            "iter_idx": iter_idx,
-            "converged": int(converged),
-            "rounds": rounds,
-            "duration_sec": f"{duration:.6f}",
-            "player_count": len(quality_scores),
-            "quality_scores_json": json.dumps(quality_scores, ensure_ascii=False, sort_keys=True),
-            "final_datasizes_json": json.dumps(final_datasizes, ensure_ascii=False, sort_keys=True),
-            "final_payoffs_json": json.dumps(final_payoffs, ensure_ascii=False, sort_keys=True),
-        }
-        append_csv_log(csv_log_file, record)
+        for iter_idx in target_iters:
+            game_id += 1
+            quality_scores = {
+                pid: per_player_scores[iter_idx] for pid, per_player_scores in all_scores.items()
+            }
+            caps_seq = evenly_split_total_datasize(args.total_datasize, len(quality_scores))
+            per_player_caps = {
+                pid: caps_seq[idx] for idx, pid in enumerate(sorted(quality_scores.keys()))
+            }
+            converged, rounds, duration, final_datasizes, final_payoffs = run_non_cooperative_game(
+                quality_scores=quality_scores,
+                max_data_size=args.max_data_size,
+                per_player_caps=per_player_caps,
+                step_long=args.step_long,
+                convergence_tol=args.convergence_tol,
+                max_rounds=args.max_rounds,
+                k_loss=args.k_loss,
+            )
 
-        with jsonl_log_file.open("a", encoding="utf-8") as jf:
-            jf.write(json.dumps(record, ensure_ascii=False) + "\n")
+            record = {
+                "game_id": game_id,
+                "iter_idx": iter_idx,
+                "converged": int(converged),
+                "rounds": rounds,
+                "duration_sec": f"{duration:.6f}",
+                "player_count": len(quality_scores),
+                "quality_scores_json": json.dumps(quality_scores, ensure_ascii=False, sort_keys=True),
+                "final_datasizes_json": json.dumps(final_datasizes, ensure_ascii=False, sort_keys=True),
+                "final_payoffs_json": json.dumps(final_payoffs, ensure_ascii=False, sort_keys=True),
+            }
+            append_csv_log(csv_log_file, record)
 
-        print(
-            f"[game_id={game_id}] iter={iter_idx}, converged={converged}, "
-            f"rounds={rounds}, duration={duration:.6f}s"
-        )
-        total_rounds += rounds
-        total_duration += duration
-        if converged:
-            converged_games += 1
+            with jsonl_log_file.open("a", encoding="utf-8") as jf:
+                jf.write(json.dumps(record, ensure_ascii=False) + "\n")
+
+            print(
+                f"[scenario={scenario_name}] [game_id={game_id}] iter={iter_idx}, "
+                f"players={len(quality_scores)}, total_datasize={args.total_datasize}, "
+                f"converged={converged}, rounds={rounds}, duration={duration:.6f}s"
+            )
+            total_rounds += rounds
+            total_duration += duration
+            if converged:
+                converged_games += 1
 
     run_summary_record = {
         "run_timestamp_utc": datetime.now(timezone.utc).isoformat(),
-        "quality_dir": str(quality_dir),
-        "iter_count": len(target_iters),
+        "quality_dir": str(quality_dir) if not player_counts else str(mock_base_dir),
+        "iter_count": game_id,
         "total_rounds": total_rounds,
         "total_duration_sec": f"{total_duration:.6f}",
-        "avg_rounds_per_game": f"{(total_rounds / len(target_iters)):.6f}",
-        "avg_duration_sec_per_game": f"{(total_duration / len(target_iters)):.6f}",
-        "all_converged": int(converged_games == len(target_iters)),
+        "avg_rounds_per_game": f"{(total_rounds / game_id):.6f}",
+        "avg_duration_sec_per_game": f"{(total_duration / game_id):.6f}",
+        "all_converged": int(converged_games == game_id),
     }
     append_run_summary(run_summary_csv, run_summary_record)
     with run_summary_jsonl.open("a", encoding="utf-8") as f:

@@ -421,7 +421,16 @@ def main():
     parser.add_argument(
         "--quality-dir",
         default="log/cnn/CIFAR10/exp_E/class/quality_score",
-        help="质量分数文件目录",
+        help="质量分数文件目录（优先级低于 --mock-scenario）",
+    )
+    parser.add_argument(
+        "--mock-scenario",
+        type=str,
+        default=None,
+        help=(
+            "从 mock_data/non_coop_quality_scenarios 下选择场景目录名，"
+            "例如 mock_10_real_clients；指定后会覆盖 --quality-dir"
+        ),
     )
     parser.add_argument("--log-dir", default="./game_log", help="实验日志输出目录")
     parser.add_argument("--max-data-size", type=int, default=5000, help="单参与方最大数据量")
@@ -450,8 +459,13 @@ def main():
     args = parser.parse_args()
 
     quality_dir = Path(args.quality_dir)
+    if args.mock_scenario:
+        quality_dir = Path("mock_data/non_coop_quality_scenarios") / args.mock_scenario
     log_dir = Path(args.log_dir)
     ensure_game_log_dir(log_dir)
+
+    if not quality_dir.exists():
+        raise FileNotFoundError(f"质量分数目录不存在: {quality_dir}")
 
     all_scores = load_quality_scores(quality_dir)
     datasize_caps = load_datasize_caps(quality_dir)

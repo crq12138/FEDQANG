@@ -132,7 +132,7 @@ def plot_exp1() -> None:
             non_iid_upper,
             color="#1f77b4",
             alpha=0.15,
-            label="非独立同分布范围",
+            label="独立同分布参与方范围",
             zorder=2,
         )
         ax.plot(
@@ -143,7 +143,7 @@ def plot_exp1() -> None:
             marker="s",
             markersize=4.2,
             markevery=5,
-            label="非独立同分布均值",
+            label="非独立同分布参与方均值",
             zorder=4,
         )
         ax.plot(
@@ -153,7 +153,7 @@ def plot_exp1() -> None:
             linewidth=1.3,
             linestyle="--",
             alpha=0.9,
-            label="非独立同分布下界",
+            label="非独立同分布参与方下界",
             zorder=3,
         )
         ax.plot(
@@ -163,7 +163,7 @@ def plot_exp1() -> None:
             linewidth=1.3,
             linestyle=":",
             alpha=0.95,
-            label="非独立同分布上界",
+            label="非独立同分布参与方上界",
             zorder=3,
         )
 

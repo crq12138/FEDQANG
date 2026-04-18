@@ -1,2 +1,5 @@
 run_timestamp_utc,quality_dir,iter_count,total_rounds,total_duration_sec,avg_rounds_per_game,avg_duration_sec_per_game,all_converged
-2026-04-18T02:59:19.623248+00:00,mock_data/non_coop_quality_scenarios,100,2582,3.610855,25.820000,0.036109,1
+2026-04-18T08:34:18.674664+00:00,quality_data/non_coop_quality_scenarios,100,9549,9.843230,95.490000,0.098432,1
+2026-04-18T11:29:00.777166+00:00,quality_data/non_coop_quality_scenarios,100,5028,6.623587,50.280000,0.066236,1
+2026-04-18T11:29:58.405060+00:00,quality_data/non_coop_quality_scenarios,100,12298,12.440477,122.980000,0.124405,1
+2026-04-18T12:19:06.442708+00:00,quality_data/non_coop_quality_scenarios,100,14484,16.167496,144.840000,0.161675,1

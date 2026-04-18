@@ -146,7 +146,7 @@ def solve_optimal_data_contribution(
             all_quality_scores,
             k,
         )
-        p_n_val = p_n_dict[participant] if participant in p_n_dict else 40
+        p_n_val = p_n_dict[participant] if participant in p_n_dict else 3.0
         util = utility_function(loss_dec, p_n_val)
         c_val = cost_function(x_n)
         transfer_val = transfer_term(
@@ -405,9 +405,9 @@ def main():
     )
     parser.add_argument("--log-dir", default="./game_log", help="实验日志输出目录")
     parser.add_argument("--max-data-size", type=int, default=5000, help="单参与方最大数据量")
-    parser.add_argument("--step-long", type=float, default=0.3, help="迭代平滑系数")
+    parser.add_argument("--step-long", type=float, default=0.1, help="迭代平滑系数")
     parser.add_argument("--convergence-tol", type=int, default=0, help="收敛阈值")
-    parser.add_argument("--max-rounds", type=int, default=100000, help="最大博弈轮次")
+    parser.add_argument("--max-rounds", type=int, default=2000, help="最大博弈轮次")
     parser.add_argument("--k-loss", type=float, default=0.1, help="损失参数 k")
     parser.add_argument(
         "--iter-idx",

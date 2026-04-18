@@ -363,6 +363,14 @@ def append_run_summary(log_file: Path, row: dict) -> None:
         writer.writerow(row)
 
 
+def build_log_file_suffix(participant_counts_arg: str) -> str:
+    counts = [x.strip() for x in participant_counts_arg.split(",") if x.strip()]
+    if not counts:
+        return "single_quality_dir"
+    normalized = "_".join(counts)
+    return f"participants_{normalized}"
+
+
 def main():
     parser = argparse.ArgumentParser(description="非合作博弈仿真实验")
     parser.add_argument(
@@ -421,10 +429,11 @@ def main():
             all_scores = load_quality_scores_from_files(selected_files)
             scenarios.append((f"mock_{player_count}_clients", all_scores))
 
-    csv_log_file = log_dir / "non_coop_game_metrics.csv"
-    jsonl_log_file = log_dir / "non_coop_game_metrics.jsonl"
-    run_summary_csv = log_dir / "non_coop_run_summary.csv"
-    run_summary_jsonl = log_dir / "non_coop_run_summary.jsonl"
+    log_suffix = build_log_file_suffix(args.participant_counts)
+    csv_log_file = log_dir / f"non_coop_game_metrics_{log_suffix}.csv"
+    jsonl_log_file = log_dir / f"non_coop_game_metrics_{log_suffix}.jsonl"
+    run_summary_csv = log_dir / f"non_coop_run_summary_{log_suffix}.csv"
+    run_summary_jsonl = log_dir / f"non_coop_run_summary_{log_suffix}.jsonl"
 
     total_rounds = 0
     total_duration = 0.0

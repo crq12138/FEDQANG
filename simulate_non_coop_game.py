@@ -227,7 +227,7 @@ def evenly_split_total_datasize(total: int, count: int) -> Dict[int, int]:
 
 
 def pick_quality_files_for_player_count(mock_base_dir: Path, player_count: int) -> List[Path]:
-    exact_dir = mock_base_dir / f"mock_{player_count}_clients"
+    exact_dir = mock_base_dir / f"{player_count}_clients"
     if exact_dir.exists():
         files = sorted(exact_dir.glob("Quality_score_*.txt"))
         if len(files) < player_count:
@@ -235,8 +235,8 @@ def pick_quality_files_for_player_count(mock_base_dir: Path, player_count: int) 
         return files[:player_count]
 
     scenario_dirs = []
-    for candidate in sorted(mock_base_dir.glob("mock_*_clients")):
-        m = re.match(r"mock_(\d+)_clients", candidate.name)
+    for candidate in sorted(mock_base_dir.glob("*_clients")):
+        m = re.match(r"(\d+)_clients", candidate.name)
         if not m:
             continue
         candidate_count = int(m.group(1))
@@ -251,7 +251,7 @@ def pick_quality_files_for_player_count(mock_base_dir: Path, player_count: int) 
     if len(files) < player_count:
         raise RuntimeError(f"{chosen_dir} 中质量分数文件不足 {player_count} 个")
     print(
-        f"[提示] 未找到 mock_{player_count}_clients，使用 {chosen_dir.name} 的前 {player_count} "
+        f"[提示] 未找到 {player_count}_clients，使用 {chosen_dir.name} 的前 {player_count} "
         f"个参与方文件进行仿真（源场景参与方数={chosen_count}）"
     )
     return files[:player_count]
@@ -304,7 +304,7 @@ def run_non_cooperative_game(
             smoothed = int(step_long * step + datasizes[pid])
             new_datasizes[pid] = smoothed
             payoffs[pid] = payoff
-            if abs(smoothed - datasizes[pid]) < convergence_tol:
+            if abs(smoothed - datasizes[pid]) <= convergence_tol:
                 converged_count += 1
 
         datasizes = new_datasizes
@@ -375,7 +375,7 @@ def main():
     parser = argparse.ArgumentParser(description="非合作博弈仿真实验")
     parser.add_argument(
         "--mock-base-dir",
-        default="mock_data/non_coop_quality_scenarios",
+        default="quality_data/non_coop_quality_scenarios",
         help="mock 场景根目录",
     )
     parser.add_argument(
@@ -396,9 +396,9 @@ def main():
     )
     parser.add_argument("--log-dir", default="./game_log", help="实验日志输出目录")
     parser.add_argument("--max-data-size", type=int, default=5000, help="单参与方最大数据量")
-    parser.add_argument("--step-long", type=float, default=0.2, help="迭代平滑系数")
-    parser.add_argument("--convergence-tol", type=int, default=2, help="收敛阈值")
-    parser.add_argument("--max-rounds", type=int, default=1000000, help="最大博弈轮次")
+    parser.add_argument("--step-long", type=float, default=0.3, help="迭代平滑系数")
+    parser.add_argument("--convergence-tol", type=int, default=0, help="收敛阈值")
+    parser.add_argument("--max-rounds", type=int, default=100000, help="最大博弈轮次")
     parser.add_argument("--k-loss", type=float, default=0.1, help="损失参数 k")
     parser.add_argument(
         "--iter-idx",
@@ -427,7 +427,7 @@ def main():
         for player_count in player_counts:
             selected_files = pick_quality_files_for_player_count(mock_base_dir, player_count)
             all_scores = load_quality_scores_from_files(selected_files)
-            scenarios.append((f"mock_{player_count}_clients", all_scores))
+            scenarios.append((f"{player_count}_clients", all_scores))
 
     log_suffix = build_log_file_suffix(args.participant_counts)
     csv_log_file = log_dir / f"non_coop_game_metrics_{log_suffix}.csv"

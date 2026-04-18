@@ -1,4 +1,0 @@
-run_timestamp_utc,quality_dir,iter_count,total_rounds,total_duration_sec,avg_rounds_per_game,avg_duration_sec_per_game,all_converged
-2026-04-14T03:59:46.658629+00:00,log/cnn/CIFAR10/exp_E/class/quality_score,100,5994,13.388393,59.940000,0.133884,1
-2026-04-14T06:42:06.206486+00:00,log/cnn/CIFAR10/exp_E/class/quality_score,100,8736,17.696706,87.360000,0.176967,1
-2026-04-17T07:29:55.731986+00:00,log/cnn/CIFAR10/exp_E/class/quality_score,100,8736,18.920279,87.360000,0.189203,1

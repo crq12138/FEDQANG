@@ -1,0 +1,12 @@
+{
+  "scenario": "similar_distribution_5_clients",
+  "description": "5客户端同分布mock场景，总数据量固定50000",
+  "total_datasize": 50000,
+  "caps": {
+    "C01": 10000,
+    "C02": 10000,
+    "C03": 10000,
+    "C04": 10000,
+    "C05": 10000
+  }
+}

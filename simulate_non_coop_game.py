@@ -379,8 +379,17 @@ def main():
         help="mock 场景根目录",
     )
     parser.add_argument(
+        "--scenario-profile",
+        choices=["legacy", "similar_distribution"],
+        default="legacy",
+        help=(
+            "场景配置开关：legacy 使用历史质量分数目录；"
+            "similar_distribution 使用同分布mock场景目录"
+        ),
+    )
+    parser.add_argument(
         "--participant-counts",
-        default="5,10,15,20",
+        default="5,10,15,20,25",
         help="需要仿真的参与方数量列表（逗号分隔）",
     )
     parser.add_argument(
@@ -409,7 +418,12 @@ def main():
     args = parser.parse_args()
 
     quality_dir = Path(args.quality_dir)
-    mock_base_dir = Path(args.mock_base_dir)
+    default_mock_dir = parser.get_default("mock_base_dir")
+    selected_mock_dir = args.mock_base_dir
+    if args.scenario_profile == "similar_distribution" and args.mock_base_dir == default_mock_dir:
+        selected_mock_dir = "quality_data/non_coop_quality_scenarios_similar"
+
+    mock_base_dir = Path(selected_mock_dir)
     log_dir = Path(args.log_dir)
     ensure_game_log_dir(log_dir)
 

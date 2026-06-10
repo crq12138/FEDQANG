@@ -3,7 +3,7 @@ import os
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-
+from matplotlib.ticker import ScalarFormatter
 
 AVG_CSV_PATH = "./game_log/non_coop_batch/non_coop_avg_total_rounds.csv"
 DETAIL_CSV_PATH = "./game_log/non_coop_batch/non_coop_total_rounds_by_scenario.csv"
@@ -106,7 +106,7 @@ def plot_exp6() -> None:
         capsize=4,
         capthick=1.2,
         zorder=4,
-        label="场景区间（最小~最大）",
+        label="重复实验区间",
     )
 
     ax.plot(
@@ -120,21 +120,25 @@ def plot_exp6() -> None:
         zorder=5,
     )
 
-    for bar, val in zip(bars, y):
-        ax.text(
-            bar.get_x() + bar.get_width() / 2,
-            val,
-            f"{int(round(val))}",
-            ha="center",
-            va="bottom",
-            fontsize=11,
-            zorder=6,
-        )
+    # for bar, val in zip(bars, y):
+    #     ax.text(
+    #         bar.get_x() + bar.get_width() / 2,
+    #         val,
+    #         f"{int(round(val))}",
+    #         ha="center",
+    #         va="bottom",
+    #         fontsize=11,
+    #         zorder=6,
+    #     )
 
     ax.set_xlabel("参与方数量")
     ax.set_ylabel("总收敛轮次")
     ax.set_xticks(x)
     ax.set_xticklabels([str(v) for v in x])
+    y_formatter = ScalarFormatter(useMathText=True)
+    y_formatter.set_scientific(True)
+    y_formatter.set_powerlimits((4, 4))
+    ax.yaxis.set_major_formatter(y_formatter)
     ax.grid(axis="y", linestyle="--", alpha=0.35, zorder=1)
 
     y_max_plot = float(np.max(y_max))
